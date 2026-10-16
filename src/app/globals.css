@@ -1,0 +1,229 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────────────────────
+   ThiagoCRM — tokens
+   Marca Thiago Alemão: azul-marinho profundo + verde-água.
+   O menu lateral é sempre marinho (âncora da marca); a área
+   de trabalho alterna entre claro e escuro.
+   ───────────────────────────────────────────────────────────── */
+:root {
+  --bg: #eef2f5;
+  --surface: #ffffff;
+  --surface-2: #f6f8fa;
+  --sunken: #e6ebf0;
+  --line: #dde4ea;
+  --line-strong: #c5d0d9;
+  --ink: #0d2238;
+  --ink-2: #44586c;
+  --ink-3: #7d8fa0;
+
+  --brand: #1f8c7f;
+  --brand-strong: #146c62;
+  --brand-soft: #dcf1ed;
+  --brand-ink: #ffffff;
+
+  --navy: #0b2440;
+  --navy-2: #0f2d4f;
+  --navy-3: #16395f;
+  --navy-ink: #e7f0f8;
+  --navy-ink-2: #8fa9c2;
+
+  --amber: #c98316;
+  --amber-soft: #fbefd9;
+  --coral: #d2513f;
+  --coral-soft: #fbe5e1;
+  --sky: #2f6fb8;
+  --sky-soft: #e2ecf8;
+  --violet: #7c4dbd;
+  --violet-soft: #eee6f9;
+  --ok: #1f9d55;
+  --ok-soft: #dff3e7;
+
+  --shadow-sm: 0 1px 2px rgb(13 34 56 / 0.06);
+  --shadow: 0 1px 2px rgb(13 34 56 / 0.05), 0 6px 20px -8px rgb(13 34 56 / 0.12);
+  --shadow-lg: 0 20px 50px -12px rgb(13 34 56 / 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #071a2e;
+    --surface: #0c2440;
+    --surface-2: #0f2a49;
+    --sunken: #081d33;
+    --line: #18375a;
+    --line-strong: #24496f;
+    --ink: #eaf2fa;
+    --ink-2: #a9bfd3;
+    --ink-3: #6f8aa4;
+    --brand: #35b8a8;
+    --brand-strong: #6fd6c8;
+    --brand-soft: #0f3a3f;
+    --brand-ink: #04211e;
+    --navy: #051528;
+    --navy-2: #0a2139;
+    --navy-3: #12304f;
+    --amber: #f0b44e;
+    --amber-soft: #352915;
+    --coral: #f07a66;
+    --coral-soft: #3a1d1d;
+    --sky: #7fb0ea;
+    --sky-soft: #132c4a;
+    --violet: #b996ee;
+    --violet-soft: #2a2148;
+    --ok: #4cc983;
+    --ok-soft: #10332a;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -10px rgb(0 0 0 / 0.5);
+    --shadow-lg: 0 24px 60px -12px rgb(0 0 0 / 0.7);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #071a2e;
+  --surface: #0c2440;
+  --surface-2: #0f2a49;
+  --sunken: #081d33;
+  --line: #18375a;
+  --line-strong: #24496f;
+  --ink: #eaf2fa;
+  --ink-2: #a9bfd3;
+  --ink-3: #6f8aa4;
+  --brand: #35b8a8;
+  --brand-strong: #6fd6c8;
+  --brand-soft: #0f3a3f;
+  --brand-ink: #04211e;
+  --navy: #051528;
+  --navy-2: #0a2139;
+  --navy-3: #12304f;
+  --amber: #f0b44e;
+  --amber-soft: #352915;
+  --coral: #f07a66;
+  --coral-soft: #3a1d1d;
+  --sky: #7fb0ea;
+  --sky-soft: #132c4a;
+  --violet: #b996ee;
+  --violet-soft: #2a2148;
+  --ok: #4cc983;
+  --ok-soft: #10332a;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -10px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 24px 60px -12px rgb(0 0 0 / 0.7);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-sunken: var(--sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-ink: var(--brand-ink);
+  --color-navy: var(--navy);
+  --color-navy-2: var(--navy-2);
+  --color-navy-3: var(--navy-3);
+  --color-navy-ink: var(--navy-ink);
+  --color-navy-ink-2: var(--navy-ink-2);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --color-coral: var(--coral);
+  --color-coral-soft: var(--coral-soft);
+  --color-sky: var(--sky);
+  --color-sky-soft: var(--sky-soft);
+  --color-violet: var(--violet);
+  --color-violet-soft: var(--violet-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --font-sans: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "Instrument Sans Variable", ui-sans-serif, sans-serif;
+  --shadow-card: var(--shadow);
+  --shadow-soft: var(--shadow-sm);
+  --shadow-pop: var(--shadow-lg);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.scroll-navy {
+  scrollbar-width: thin;
+  scrollbar-color: var(--navy-3) transparent;
+}
+
+::selection {
+  background: var(--brand-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0.55;
+  cursor: pointer;
+}
+:root[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+  }
+}
+
+mark {
+  background: color-mix(in oklab, var(--amber) 30%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes fade-out { from { opacity: 1 } to { opacity: 0 } }
+@keyframes modal-in { from { opacity: 0; transform: translate(-50%, -48%) scale(.97) } to { opacity: 1; transform: translate(-50%, -50%) scale(1) } }
+@keyframes modal-out { from { opacity: 1; transform: translate(-50%, -50%) scale(1) } to { opacity: 0; transform: translate(-50%, -49%) scale(.98) } }
+@keyframes sheet-in { from { transform: translateX(100%) } to { transform: translateX(0) } }
+@keyframes sheet-out { from { transform: translateX(0) } to { transform: translateX(100%) } }
+@keyframes shimmer { 0% { background-position: -400px 0 } 100% { background-position: 400px 0 } }
+.skeleton {
+  background: linear-gradient(90deg, var(--sunken) 0, var(--surface-2) 40%, var(--sunken) 80%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s linear infinite;
+}
