@@ -113,6 +113,14 @@ Nos dois casos você escolhe funil, etapa e etiquetas. "Lista de prospecção" g
 
 Custo (tabela da Google em out/2026): cada busca de até 20 resultados com telefone é cobrada como *Text Search Enterprise*: 1.000 buscas grátis por mês, depois US$ 35 a cada 1.000. Uma busca de 3 tipos numa cidade, com "Carregar mais" até o fim, gasta até 9 buscas.
 
+### Nova marca (v2.5)
+
+- Logo Thiago Alemão (coruja-pena dourada sobre azul-marinho) no menu, na abertura e no login; ícone da aba trocado. Arquivos em `src/assets/marca/`.
+
+### Leads do Instagram (v2.4)
+
+O webhook do Elo também cria lead para quem chegou pelo Instagram, só com o @ (sem telefone), com origem **IG Comentário** ou **IG Seguidor**. O lead é achado pelo `crm_id`, pelo telefone (com ou sem o 9) ou pelo @. Quando a pessoa passa o WhatsApp no Elo, o lead ganha o telefone (e o histórico registra).
+
 ## Correções em relação ao CRM antigo
 
 - **Data de hoje em UTC:** depois das 21h o CRM antigo já considerava o dia seguinte (follow-ups "atrasados" antes da hora). Agora usa o horário local.

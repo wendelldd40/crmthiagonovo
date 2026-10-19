@@ -69,8 +69,17 @@ export async function POST(req: Request) {
     funnels,
     ev,
   );
+  // lead que nasceu pelo Instagram ganha o telefone quando a pessoa passa o WhatsApp (e vice-versa com o @)
+  const completar: Record<string, unknown> = {};
+  const telEv = normalizePhone(ev.contato.telefone ?? "");
+  if (telEv && !normalizePhone(String(atual.phone ?? ""))) {
+    completar.phone = telefoneParaCrm(telEv);
+    r.atividades.push({ text: `WhatsApp recebido pelo Elo: ${telefoneParaCrm(telEv)}`, time: new Date().toISOString() });
+  }
+  const insta = instagramDe(ev);
+  if (insta && !String(atual.instagram ?? "").trim()) completar.instagram = insta;
   const activities = [...((atual.activities as unknown[]) ?? []), ...r.atividades];
-  const { error } = await sb.from("leads").update({ ...r.patch, ...(r.atividades.length ? { activities } : {}) }).eq("id", atual.id as string);
+  const { error } = await sb.from("leads").update({ ...r.patch, ...completar, ...(r.atividades.length ? { activities } : {}) }).eq("id", atual.id as string);
   if (error) {
     const falta = /elo_/i.test(error.message);
     return Response.json({ erro: falta ? "Rode o supabase/esteira-elo.sql no banco do CRM" : error.message }, { status: 500 });
@@ -87,13 +96,38 @@ async function acharLead(sb: SupabaseClient, ev: EventoEsteira): Promise<Row | n
   }
   const tel = normalizePhone(ev.contato.telefone ?? "");
   const fim = digits(ev.contato.telefone ?? "").slice(-4); // o nono dígito nunca está nos 4 últimos
-  if (!tel || fim.length !== 4) return null;
-  const formas = variantesTelefone(tel);
-  const { data } = await sb.from("leads").select("*").ilike("phone", `%${fim}`).limit(50);
-  const candidatos = (data ?? []).filter((l) => formas.includes(normalizePhone(String(l.phone ?? "")) ?? ""));
-  // prefere a forma exata e, entre iguais, o lead mais antigo
-  return candidatos.find((l) => normalizePhone(String(l.phone)) === tel) ?? candidatos[0] ?? null;
+  if (tel && fim.length === 4) {
+    const formas = variantesTelefone(tel);
+    const { data } = await sb.from("leads").select("*").ilike("phone", `%${fim}`).limit(50);
+    const candidatos = (data ?? []).filter((l) => formas.includes(normalizePhone(String(l.phone ?? "")) ?? ""));
+    // prefere a forma exata e, entre iguais, o lead mais antigo
+    const achado = candidatos.find((l) => normalizePhone(String(l.phone)) === tel) ?? candidatos[0];
+    if (achado) return achado;
+  }
+  // 3º pelo @ do Instagram (o funil INSTAGRAM do CRM guarda o @ dos leads)
+  const insta = instagramDe(ev);
+  if (insta) {
+    const u = insta.slice(1);
+    const { data } = await sb.from("leads").select("*").or(`instagram.ilike.@${u},instagram.ilike.${u},instagram.ilike.%instagram.com/${u}%`).limit(5);
+    const achado = (data ?? []).find((l) => usuarioInstagram(String(l.instagram ?? "")) === u);
+    if (achado) return achado;
+  }
+  return null;
 }
+
+/** "@Fulano.Vet", "fulano.vet", "instagram.com/fulano.vet/" → "fulano.vet" */
+function usuarioInstagram(v: string): string | null {
+  const m = v.trim().match(/(?:instagram\.com\/)?@?([A-Za-z0-9_.]{1,30})\/?$/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+/** @ do contato no Instagram (campo instagram do Elo), já normalizado. */
+function instagramDe(ev: EventoEsteira): string | null {
+  const u = usuarioInstagram(ev.contato.campos?.instagram ?? "");
+  return u ? `@${u}` : null;
+}
+
+const ORIGENS_ACEITAS = new Set(["whatsapp", "ig_comentario", "ig_seguidor"]);
 
 const hojeBrasilia = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 
@@ -102,25 +136,28 @@ async function criarLead(sb: SupabaseClient, ev: EventoEsteira): Promise<{ lead:
   const funilId = campos.crm_funil_id;
   if (!funilId) return { ignorado: "lead não encontrado no CRM (contato sem funil do CRM marcado no Elo)" };
   const tel = normalizePhone(ev.contato.telefone ?? "");
-  if (!tel) return { ignorado: "telefone inválido" };
+  const insta = instagramDe(ev);
+  if (!tel && !insta) return { ignorado: "sem WhatsApp válido nem @ do Instagram" };
 
   const { data: fRow } = await sb.from("funnels").select("*").eq("id", funilId).maybeSingle();
   if (!fRow) return { ignorado: `o funil marcado no Elo não existe mais no CRM (${campos.funil ?? funilId})` };
   const funil = mapFunnel(fRow);
   const etapa = funil.stages.find((s) => s.id === campos.crm_etapa_id) ?? funil.stages[0];
 
-  const quem = ev.toque?.direcao === "in" ? "a pessoa chamou no WhatsApp" : ev.toque ? "primeiro contato pelo Elo" : "funil marcado no Elo";
+  const origem = ORIGENS_ACEITAS.has(campos.crm_origem ?? "") ? campos.crm_origem! : "whatsapp";
+  const quem = origem === "ig_comentario" ? "comentou no Instagram" : origem === "ig_seguidor" && !tel ? "chamou no Instagram"
+    : ev.toque?.direcao === "in" ? "a pessoa chamou no WhatsApp" : ev.toque ? "primeiro contato pelo Elo" : "funil marcado no Elo";
   const agora = new Date().toISOString();
   const nome = (ev.contato.nome ?? "").trim();
   const { data, error } = await sb
     .from("leads")
     .insert({
-      name: nome && !nome.startsWith("+") ? nome : telefoneParaCrm(tel),
-      phone: telefoneParaCrm(tel),
+      name: nome && !nome.startsWith("+") ? nome : tel ? telefoneParaCrm(tel) : insta,
+      phone: tel ? telefoneParaCrm(tel) : null,
       email: campos.email || null,
       company: campos.empresa || null,
-      instagram: campos.instagram || null,
-      origin: "whatsapp",
+      instagram: insta,
+      origin: origem,
       funnel_id: funil.id,
       stage_id: etapa?.id ?? null,
       date: hojeBrasilia(),

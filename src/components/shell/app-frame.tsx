@@ -15,14 +15,14 @@ import { BottomNav, MobileTop } from "./mobile-nav";
 import { CommandPalette } from "./command";
 import { Toaster } from "./toaster";
 import { NAV } from "./nav";
-import { OwlMark } from "./logo";
+import { LogoCompleta } from "./logo";
 
 function Splash() {
   return (
     <div className="grid h-dvh place-items-center bg-navy">
       <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }} className="flex flex-col items-center gap-4">
-        <motion.div animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}>
-          <OwlMark className="size-14 rounded-2xl" />
+        <motion.div animate={{ opacity: [0.75, 1, 0.75] }} transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}>
+          <LogoCompleta className="w-[280px]" />
         </motion.div>
         <p className="text-sm text-navy-ink-2">Carregando os leads…</p>
       </motion.div>

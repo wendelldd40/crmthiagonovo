@@ -7,7 +7,7 @@ import { IS_DEMO } from "@/lib/config";
 import { backend } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
-import { OwlMark, Wordmark } from "@/components/shell/logo";
+import { LogoCompleta, OwlMark, Wordmark } from "@/components/shell/logo";
 
 const STAGES = ["Lead novo", "Primeiro contato", "Qualificação", "Proposta", "Fechado"];
 
@@ -37,11 +37,7 @@ export function LoginForm() {
     <div className="grid min-h-dvh bg-bg lg:grid-cols-[1.05fr_1fr]">
       <section className="relative hidden overflow-hidden bg-navy p-12 text-navy-ink lg:flex lg:flex-col">
         <div className="flex items-center gap-3">
-          <OwlMark className="size-10" />
-          <div className="leading-tight">
-            <Wordmark className="block text-xl text-white" />
-            <span className="text-xs text-navy-ink-2">Gestão Empresarial Veterinária</span>
-          </div>
+          <LogoCompleta className="w-[300px]" />
         </div>
 
         <div className="my-auto max-w-lg">

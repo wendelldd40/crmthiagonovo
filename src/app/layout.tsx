@@ -7,7 +7,6 @@ import { THEME_SCRIPT } from "@/components/shell/theme";
 export const metadata: Metadata = {
   title: { default: "ThiagoCRM", template: "%s · ThiagoCRM" },
   description: "CRM da Thiago Alemão Gestão Empresarial Veterinária",
-  icons: { icon: "/icon.svg" },
 };
 
 export const viewport: Viewport = {
