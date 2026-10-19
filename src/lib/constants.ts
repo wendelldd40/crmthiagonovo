@@ -2,9 +2,11 @@ import {
   AtSign,
   BriefcaseBusiness,
   Camera,
+  FileSpreadsheet,
   Globe,
   Handshake,
   Mail,
+  MapPinned,
   Megaphone,
   MessageCircle,
   MessageSquareText,
@@ -29,6 +31,8 @@ export const ORIGINS: Record<string, OriginDef> = {
   indicacao: { label: "Indicação", short: "Indicação", icon: Handshake, color: "#0891b2", group: "frio" },
   organico: { label: "Orgânico", short: "Orgânico", icon: Sprout, color: "#4d9e3a", group: "frio" },
   evento: { label: "Evento", short: "Evento", icon: Tent, color: "#ea7317", group: "frio" },
+  google_maps: { label: "Google Maps", short: "Google", icon: MapPinned, color: "#ea4335", group: "frio" },
+  lista: { label: "Lista / planilha", short: "Lista", icon: FileSpreadsheet, color: "#0f9d58", group: "frio" },
   site: { label: "Site", short: "Site", icon: Globe, color: "#2f6fb8", group: "outro" },
   email: { label: "E-mail", short: "E-mail", icon: Mail, color: "#b08a1e", group: "outro" },
   linkedin: { label: "LinkedIn", short: "LinkedIn", icon: BriefcaseBusiness, color: "#0e76a8", group: "outro" },
@@ -38,7 +42,7 @@ export const ORIGINS: Record<string, OriginDef> = {
 export const ORIGIN_GROUPS: { label: string; keys: string[] }[] = [
   { label: "Instagram", keys: ["ig_comentario", "ig_seguidor"] },
   { label: "WhatsApp", keys: ["whatsapp"] },
-  { label: "Indicação e frio", keys: ["indicacao", "organico", "evento"] },
+  { label: "Indicação e frio", keys: ["indicacao", "organico", "evento", "google_maps", "lista"] },
   { label: "Outros", keys: ["site", "email", "linkedin", "outro"] },
 ];
 
@@ -83,12 +87,13 @@ export type PageKey =
   | "abordagem"
   | "marketing"
   | "elo"
+  | "importar"
   | "usuarios";
 
 export const ROLE_PAGES: Record<Role, PageKey[]> = {
-  admin: ["painel", "kanban", "leads", "funis", "relatorios", "estagiario", "thiago", "abordagem", "marketing", "elo", "usuarios"],
-  dev: ["painel", "kanban", "leads", "funis", "relatorios", "estagiario", "thiago", "abordagem", "marketing", "elo", "usuarios"],
-  estagiario: ["painel", "kanban", "leads", "funis", "relatorios", "estagiario", "abordagem", "elo"],
+  admin: ["painel", "kanban", "leads", "importar", "funis", "relatorios", "estagiario", "thiago", "abordagem", "marketing", "elo", "usuarios"],
+  dev: ["painel", "kanban", "leads", "importar", "funis", "relatorios", "estagiario", "thiago", "abordagem", "marketing", "elo", "usuarios"],
+  estagiario: ["painel", "kanban", "leads", "importar", "funis", "relatorios", "estagiario", "abordagem", "elo"],
   marketing: ["painel", "leads", "relatorios", "marketing"],
 };
 

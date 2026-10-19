@@ -70,6 +70,12 @@ export const supabaseBackend: Backend = {
     check(error);
     return data as Row;
   },
+  async insertMany(table, rows) {
+    if (!rows.length) return [];
+    const { data, error } = await sb().from(table).insert(rows).select();
+    check(error);
+    return (data ?? []) as Row[];
+  },
   async update(table, id, patch) {
     const { error } = await sb().from(table).update(patch).eq("id", id);
     check(error);

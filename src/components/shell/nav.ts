@@ -1,4 +1,4 @@
-import { Cable, ChartColumn, ClipboardList, Funnel, GraduationCap, Kanban, LayoutDashboard, Megaphone, MessageCircleMore, UserCog, Users, type LucideIcon } from "lucide-react";
+import { Cable, ChartColumn, FileUp, ClipboardList, Funnel, GraduationCap, Kanban, LayoutDashboard, Megaphone, MessageCircleMore, UserCog, Users, type LucideIcon } from "lucide-react";
 import type { PageKey } from "@/lib/constants";
 
 export interface NavItem {
@@ -13,6 +13,7 @@ export const NAV: NavItem[] = [
   { key: "painel", href: "/painel", label: "Painel", icon: LayoutDashboard, group: "pipeline" },
   { key: "kanban", href: "/kanban", label: "Kanban", icon: Kanban, group: "pipeline" },
   { key: "leads", href: "/leads", label: "Leads", icon: Users, group: "pipeline" },
+  { key: "importar", href: "/importar", label: "Importar leads", icon: FileUp, group: "pipeline" },
   { key: "funis", href: "/funis", label: "Funis", icon: Funnel, group: "pipeline" },
   { key: "relatorios", href: "/relatorios", label: "Relatórios", icon: ChartColumn, group: "pipeline" },
   { key: "abordagem", href: "/abordagem", label: "Abordagem", icon: MessageCircleMore, group: "equipe" },

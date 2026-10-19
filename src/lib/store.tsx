@@ -68,6 +68,8 @@ interface Ctx {
   confirm: (title: string, body: string, confirmLabel: string, run: () => Promise<void> | void) => void;
 
   saveLead: (data: Omit<Lead, "id" | "activities" | "date" | "elo">, editingId?: string) => Promise<Lead | null>;
+  /** importação em lote (planilha / Google). Envia ao Elo se o envio automático estiver ligado. */
+  importLeads: (rows: Omit<Lead, "id" | "elo">[], onProgress?: (feitos: number, total: number) => void) => Promise<{ criados: Lead[]; erro?: string; elo?: EloSyncSummary }>;
   patchLead: (id: string, patch: Partial<Lead>, activity?: string) => Promise<boolean>;
   moveLeadTo: (id: string, funnelId: string, stageId: string) => Promise<void>;
   deleteLead: (id: string) => Promise<void>;
@@ -368,6 +370,37 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     [autoSync, fail, toast],
   );
 
+  const importLeads = useCallback<Ctx["importLeads"]>(
+    async (rows, onProgress) => {
+      const criados: Lead[] = [];
+      const LOTE = 100;
+      onProgress?.(0, rows.length);
+      try {
+        for (let i = 0; i < rows.length; i += LOTE) {
+          const feitos = await backend.insertMany("leads", rows.slice(i, i + LOTE).map((r) => leadToDb(r)));
+          const novos = feitos.map(mapLead);
+          criados.push(...novos);
+          // o ref precisa enxergar os novos já (o envio ao Elo lê dele antes do próximo render)
+          leadsRef.current = [...leadsRef.current, ...novos];
+          setLeads((ls) => [...ls, ...novos]);
+          onProgress?.(Math.min(i + LOTE, rows.length), rows.length);
+        }
+      } catch (e) {
+        const erro = e instanceof Error ? e.message : String(e);
+        return { criados, erro: criados.length ? `${criados.length} importados; o resto falhou: ${erro}` : erro };
+      }
+      let elo: EloSyncSummary | undefined;
+      if (settingsRef.current[SETTING.eloAutoSync] === "true") {
+        const ids = criados.filter((l) => prepareLead(l, funnelsRef.current).ok).map((l) => l.id);
+        const extra = (settingsRef.current[SETTING.eloEtiqueta] || "").split(",").map((t) => t.trim()).filter(Boolean);
+        const cad = settingsRef.current[SETTING.eloCadencia];
+        if (ids.length) elo = await syncToElo(ids, extra, undefined, cad ? { nome: cad, zerar: false } : undefined);
+      }
+      return { criados, elo };
+    },
+    [syncToElo],
+  );
+
   const moveLeadTo = useCallback<Ctx["moveLeadTo"]>(
     async (id, funnelId, stageId) => {
       const l = leadsRef.current.find((x) => x.id === id);
@@ -602,11 +635,11 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       ready, loadError, user, funnels, leads, tasks, mentorships, settings, reload: load, signIn, signOut, can, canEdit,
       activeFunnelId, setActiveFunnelId, detailId, openLead: setDetailId, closeLead: () => setDetailId(null),
       dialog, setDialog, toasts, toast, dismissToast, confirm,
-      saveLead, patchLead, moveLeadTo, deleteLead, addNote, snoozeFollowUp, markFollowUpDone, markAbordado,
+      saveLead, importLeads, patchLead, moveLeadTo, deleteLead, addNote, snoozeFollowUp, markFollowUpDone, markAbordado,
       saveFunnel, deleteFunnel, saveStages, saveTask, deleteTask, setTaskStatus, saveMentorship, deleteMentorship,
       setSetting, syncToElo, registrarLigacao,
     }),
-    [ready, loadError, user, funnels, leads, tasks, mentorships, settings, load, signIn, signOut, can, canEdit, activeFunnelId, setActiveFunnelId, detailId, dialog, toasts, toast, dismissToast, confirm, saveLead, patchLead, moveLeadTo, deleteLead, addNote, snoozeFollowUp, markFollowUpDone, markAbordado, saveFunnel, deleteFunnel, saveStages, saveTask, deleteTask, setTaskStatus, saveMentorship, deleteMentorship, setSetting, syncToElo, registrarLigacao],
+    [ready, loadError, user, funnels, leads, tasks, mentorships, settings, load, signIn, signOut, can, canEdit, activeFunnelId, setActiveFunnelId, detailId, dialog, toasts, toast, dismissToast, confirm, saveLead, importLeads, patchLead, moveLeadTo, deleteLead, addNote, snoozeFollowUp, markFollowUpDone, markAbordado, saveFunnel, deleteFunnel, saveStages, saveTask, deleteTask, setTaskStatus, saveMentorship, deleteMentorship, setSetting, syncToElo, registrarLigacao],
   );
 
   return <C.Provider value={value}>{children}</C.Provider>;

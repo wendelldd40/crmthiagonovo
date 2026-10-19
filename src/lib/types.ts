@@ -32,6 +32,8 @@ export type OriginKey =
   | "site"
   | "email"
   | "linkedin"
+  | "google_maps"
+  | "lista"
   | "outro";
 
 export interface Lead {

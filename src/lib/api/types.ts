@@ -19,6 +19,8 @@ export interface Backend {
   getLead(id: string): Promise<Row | null>;
   loadAll(): Promise<RawSnapshot>;
   insert(table: Table, row: Row): Promise<Row>;
+  /** insere várias linhas de uma vez (importação) */
+  insertMany(table: Table, rows: Row[]): Promise<Row[]>;
   update(table: Table, id: string, patch: Row): Promise<void>;
   remove(table: Table, id: string): Promise<void>;
   removeWhere(table: Table, col: string, value: string): Promise<void>;

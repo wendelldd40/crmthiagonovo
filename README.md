@@ -88,6 +88,31 @@ Ao enviar leads ao Elo dá para escolher a **cadência** (e se a contagem começ
 
 **Ainda não feito:** criar lead novo no CRM quando um desconhecido chama no WhatsApp. Hoje o aviso de um contato que não existe no CRM é ignorado.
 
+### Lead que nasce no Elo (v2.2)
+
+Quando o primeiro contato é feito pelo Elo (Iniciar conversa → Número novo, escolhendo funil e etapa), o webhook `/api/elo/webhook` não acha o lead e o **cria** no funil e na etapa marcados, com origem WhatsApp. Depois devolve o id do lead ao Elo. Sem funil marcado no Elo, nada é criado.
+
+O Elo lista os funis por `GET /api/elo/funis`, assinado com o mesmo `ELO_WEBHOOK_SECRET` (cabeçalhos `X-Elo-Timestamp` e `X-Elo-Signature`, validade de 5 minutos).
+
+O lead é achado pelo `crm_id` e, se não houver, pelo telefone **com ou sem o nono dígito**.
+
+## Importar leads (v2.3)
+
+Menu **Importar leads** (admin, dev e estagiário):
+
+- **Google Maps**: cidade ou região + tipos (clínicas, hospitais 24h, pet shops, ou outro termo filtrado para negócios veterinários/pet). Mostra telefone (celular ou fixo), avaliação, site e link do Maps, e marca quem já está no CRM (telefone com ou sem o nono dígito, ou mesmo nome). Até 60 resultados por tipo e região ("Carregar mais"). Precisa de `GOOGLE_PLACES_API_KEY` na Vercel.
+- **Planilha**: `.xlsx` ou `.csv` (o modelo é baixado na própria tela). Reconhece as colunas pelo cabeçalho, deixa trocar, e mostra linha a linha o que entra e o que fica de fora (sem nome, telefone inválido, repetido na planilha, já no CRM). Até 3.000 linhas por arquivo.
+
+Nos dois casos você escolhe funil, etapa e etiquetas. "Lista de prospecção" grava a etiqueta `planilha`: o lead fica fora das métricas do Painel e entra na Abordagem, como as planilhas antigas. Com o envio automático ao Elo ligado, os importados com WhatsApp vão para o Elo na mesma hora.
+
+### Chave do Google (uma vez)
+1. console.cloud.google.com → crie um projeto → **Faturamento**: vincule um cartão.
+2. **APIs e serviços → Biblioteca → Places API (New) → Ativar**.
+3. **Credenciais → Criar credenciais → Chave de API**. Em "Restrições de API", deixe só a Places API (New).
+4. Na Vercel do CRM: `GOOGLE_PLACES_API_KEY` = a chave (tipo Secret) → Redeploy.
+
+Custo (tabela da Google em out/2026): cada busca de até 20 resultados com telefone é cobrada como *Text Search Enterprise*: 1.000 buscas grátis por mês, depois US$ 35 a cada 1.000. Uma busca de 3 tipos numa cidade, com "Carregar mais" até o fim, gasta até 9 buscas.
+
 ## Correções em relação ao CRM antigo
 
 - **Data de hoje em UTC:** depois das 21h o CRM antigo já considerava o dia seguinte (follow-ups "atrasados" antes da hora). Agora usa o horário local.

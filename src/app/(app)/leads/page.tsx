@@ -1,7 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Cable, Download, Plus, SearchX, X } from "lucide-react";
+import Link from "next/link";
+import { Cable, Download, FileUp, Plus, SearchX, X } from "lucide-react";
 import { useCRM } from "@/lib/store";
 import { ORIGIN_GROUPS, ORIGINS } from "@/lib/constants";
 import { findFunnel, findStage } from "@/lib/domain";
@@ -72,6 +73,7 @@ export default function LeadsPage() {
     <>
       <PageHeader title="Leads" subtitle={filtersOn ? `${plural(filtered.length, "lead encontrado", "leads encontrados")} de ${leads.length}` : plural(leads.length, "lead no CRM", "leads no CRM")}>
         <Button variant="secondary" size="sm" onClick={() => { exportCSV(filtered, funnels); toast("CSV exportado"); }}><Download /> Exportar CSV</Button>
+        {canEdit && can("importar") && <Button variant="secondary" size="sm" asChild><Link href="/importar"><FileUp /> Importar</Link></Button>}
         {canEdit && <Button size="sm" onClick={() => setDialog({ kind: "lead" })}><Plus /> Novo lead</Button>}
       </PageHeader>
 

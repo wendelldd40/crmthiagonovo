@@ -38,5 +38,14 @@ eq("concluída registra no histórico", r.atividades.some((a) => a.text.startsWi
 const semEtapas = { ...f, stages: [st("a", "Novo"), st("b", "Em contato"), st("c", "Fechado")] };
 r = aplicarEsteira({ ...base, funnelId: "f", stageId: "a" }, [semEtapas], ev(3) as any);
 eq("funil sem etapas numeradas: só contador", [r.moverPara, r.patch.elo_contatos], [null, 3]);
+// nono dígito: o mesmo celular com e sem o 9
+{
+  const { mesmoTelefone } = await import("../src/lib/utils.ts");
+  eq("(71) 9188-4805 = 5571991884805", mesmoTelefone("(71) 9188-4805", "5571991884805"), true);
+  eq("5571991884805 = 71 9188-4805", mesmoTelefone("5571991884805", "71 9188-4805"), true);
+  eq("fixo não ganha 9", mesmoTelefone("(71) 3043-3326", "5571930433326"), false);
+  eq("números diferentes", mesmoTelefone("71 99188-4805", "71 99188-4806"), false);
+}
+
 console.log(fail ? `\n${fail} FALHA(S)` : "\nTodos os testes passaram");
 process.exit(fail);

@@ -230,6 +230,14 @@ export const demoBackend: Backend = {
     write(db);
     return full;
   },
+  async insertMany(table, rows) {
+    await wait();
+    const db = read();
+    const full = rows.map((row) => ({ id: uid(), created_at: new Date().toISOString(), ...row }));
+    (db[table] as Row[]).push(...full);
+    write(db);
+    return full;
+  },
   async update(table, id, patch) {
     await wait(60);
     const db = read();

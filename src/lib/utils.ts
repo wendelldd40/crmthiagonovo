@@ -114,6 +114,42 @@ export function normalizePhone(raw: string): string | null {
   return d.length >= 11 && d.length <= 15 ? d : null;
 }
 
+/** O mesmo celular brasileiro com e sem o nono dígito (o WhatsApp usa um ou outro conforme o DDD). */
+export function variantesTelefone(normalizado: string): string[] {
+  const d = normalizado;
+  if (!d.startsWith("55")) return [d];
+  if (d.length === 13 && d[4] === "9") return [d, d.slice(0, 4) + d.slice(5)];
+  if (d.length === 12 && /[6-9]/.test(d[4])) return [d, d.slice(0, 4) + "9" + d.slice(4)];
+  return [d];
+}
+
+/** Formato de exibição no CRM: 5571991884805 → (71) 99188-4805 · fora do Brasil fica +DDI… */
+export function telefoneParaCrm(normalizado: string) {
+  const d = normalizado;
+  if (d.startsWith("55") && (d.length === 12 || d.length === 13)) {
+    const ddd = d.slice(2, 4), n = d.slice(4);
+    return `(${ddd}) ${n.slice(0, n.length - 4)}-${n.slice(-4)}`;
+  }
+  return `+${d}`;
+}
+
+/** Celular brasileiro (provável WhatsApp) ou fixo, a partir do número já normalizado. */
+export function tipoTelefone(normalizado: string | null): "celular" | "fixo" | "exterior" | null {
+  if (!normalizado) return null;
+  if (!normalizado.startsWith("55")) return "exterior";
+  const local = normalizado.slice(4);
+  if (local.length === 9 && local[0] === "9") return "celular";
+  if (local.length === 8 && /[6-9]/.test(local[0])) return "celular"; // celular antigo, sem o nono dígito
+  return "fixo";
+}
+
+/** Dois telefones são o mesmo número? (aceita diferença só no nono dígito) */
+export function mesmoTelefone(a: string, b: string): boolean {
+  const na = normalizePhone(a), nb = normalizePhone(b);
+  if (!na || !nb) return false;
+  return variantesTelefone(na).includes(nb);
+}
+
 export function normalize(s: string) {
   return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
