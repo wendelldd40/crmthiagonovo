@@ -34,6 +34,17 @@ function check(error: { message: string } | null) {
 }
 
 export const supabaseBackend: Backend = {
+  watchLeads(on) {
+    // precisa da tabela leads na publicação supabase_realtime (supabase/realtime-leads.sql)
+    const ch = sb()
+      .channel("crm-leads")
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, (p) => {
+        const tipo = p.eventType as "INSERT" | "UPDATE" | "DELETE";
+        on(tipo, (tipo === "DELETE" ? p.old : p.new) as Row);
+      })
+      .subscribe();
+    return () => void sb().removeChannel(ch);
+  },
   async session() {
     const { data } = await sb().auth.getSession();
     const u = data.session?.user;

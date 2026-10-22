@@ -173,6 +173,45 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(t);
   }, [load]);
 
+  /* ───────── atualização ao vivo ─────────
+   * O Elo muda o lead pelo servidor (webhook da esteira). Sem isto, a tela só via a mudança no F5.
+   * 1) tempo real do Supabase (instantâneo, se a tabela estiver na publicação)
+   * 2) reserva: recarrega os leads ao voltar para a aba e a cada 60s com a aba visível */
+  const userId = user?.id ?? null;
+  useEffect(() => {
+    if (!userId) return;
+    const parar = backend.watchLeads((tipo, row) => {
+      const id = String(row.id ?? "");
+      if (!id) return;
+      if (tipo === "DELETE") return setLeads((ls) => ls.filter((x) => x.id !== id));
+      const lead = mapLead(row);
+      setLeads((ls) => (ls.some((x) => x.id === id) ? ls.map((x) => (x.id === id ? lead : x)) : [lead, ...ls]));
+    });
+    let ultima = Date.now();
+    const atualizar = async (forcar = false) => {
+      if (document.visibilityState !== "visible") return;
+      if (!forcar && Date.now() - ultima < 15_000) return;
+      ultima = Date.now();
+      try {
+        const raw = await backend.loadAll();
+        setLeads(raw.leads.map(mapLead));
+        setTasks(raw.tasks.map(mapTask));
+      } catch {
+        /* sem rede: tenta de novo na próxima */
+      }
+    };
+    const aoVoltar = () => void atualizar();
+    const timer = setInterval(() => void atualizar(true), 60_000);
+    document.addEventListener("visibilitychange", aoVoltar);
+    window.addEventListener("focus", aoVoltar);
+    return () => {
+      parar();
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", aoVoltar);
+      window.removeEventListener("focus", aoVoltar);
+    };
+  }, [userId]);
+
   const setActiveFunnelId = useCallback((id: string) => {
     setActiveFunnelIdState(id);
     try {

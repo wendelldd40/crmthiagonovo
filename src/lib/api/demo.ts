@@ -190,6 +190,9 @@ export function resetDemo() {
 const wait = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 
 export const demoBackend: Backend = {
+  watchLeads() {
+    return () => {};
+  },
   async session() {
     let id: string | null = null;
     try {

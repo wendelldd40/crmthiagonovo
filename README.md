@@ -113,6 +113,15 @@ Nos dois casos você escolhe funil, etapa e etiquetas. "Lista de prospecção" g
 
 Custo (tabela da Google em out/2026): cada busca de até 20 resultados com telefone é cobrada como *Text Search Enterprise*: 1.000 buscas grátis por mês, depois US$ 35 a cada 1.000. Uma busca de 3 tipos numa cidade, com "Carregar mais" até o fim, gasta até 9 buscas.
 
+### Segurança (v2.7)
+
+- Next.js 16.4.0 → 16.4.2 (corrige falha crítica de execução remota de código, GHSA-2464-fhr4-w9xw).
+
+### Leads ao vivo (v2.6)
+
+- A tela do CRM muda sozinha quando o Elo atualiza a esteira de um lead (tempo real do Supabase). Rode `supabase/realtime-leads.sql` uma vez no banco do CRM.
+- Reserva sem o SQL: os leads recarregam ao voltar para a aba e a cada 60s com a aba aberta.
+
 ### Nova marca (v2.5)
 
 - Logo Thiago Alemão (coruja-pena dourada sobre azul-marinho) no menu, na abertura e no login; ícone da aba trocado. Arquivos em `src/assets/marca/`.

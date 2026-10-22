@@ -27,4 +27,6 @@ export interface Backend {
   setSetting(key: string, value: string): Promise<void>;
   listUsers(): Promise<UserRow[]>;
   updateUser(id: string, patch: Partial<Pick<UserRow, "name" | "role" | "avatar">>): Promise<void>;
+  /** Avisa quando um lead muda no banco (ex.: o Elo moveu a esteira). Devolve a função que para de escutar. */
+  watchLeads(on: (tipo: "INSERT" | "UPDATE" | "DELETE", row: Row) => void): () => void;
 }
