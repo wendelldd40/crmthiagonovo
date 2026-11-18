@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npx tsx tests/esteira.test.mts && npx tsx tests/importacao.test.mts"
+    "test": "npx tsx tests/esteira.test.mts && npx tsx tests/importacao.test.mts && npx tsx tests/ics.test.mts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

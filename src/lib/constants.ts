@@ -2,19 +2,28 @@ import {
   AtSign,
   BriefcaseBusiness,
   Camera,
+  CalendarCheck2,
+  CalendarClock,
+  CalendarX2,
+  CircleCheckBig,
   FileSpreadsheet,
   Globe,
+  GraduationCap,
   Handshake,
   Mail,
   MapPinned,
   Megaphone,
   MessageCircle,
   MessageSquareText,
+  PhoneCall,
   Sprout,
+  Stethoscope,
   Tent,
+  UserRoundX,
+  Users,
   type LucideIcon,
 } from "lucide-react";
-import type { Priority, Role, TaskStatus } from "./types";
+import type { Priority, Role, StatusCompromisso, TaskStatus, TipoCompromisso } from "./types";
 
 export interface OriginDef {
   label: string;
@@ -66,6 +75,58 @@ export const TASK_STATUS: Record<TaskStatus, { label: string; color: string }> =
   concluida: { label: "Concluída", color: "var(--ok)" },
 };
 
+/* ── Agenda: diagnósticos, reuniões e sessões ── */
+
+export interface TipoDef {
+  label: string;
+  /** Singular no plural para contadores ("3 diagnósticos"). */
+  plural: string;
+  icon: LucideIcon;
+  color: string;
+  /** Duração sugerida ao criar, em minutos. */
+  duracao: number;
+  /** Gênero da palavra, para o histórico sair com concordância ("Reunião realizada"). */
+  fem?: boolean;
+}
+
+export const TIPOS_COMPROMISSO: Record<TipoCompromisso, TipoDef> = {
+  diagnostico: { label: "Diagnóstico", plural: "diagnósticos", icon: Stethoscope, color: "#2d9d8f", duracao: 60 },
+  reuniao: { label: "Reunião", plural: "reuniões", icon: Users, color: "#2563eb", duracao: 60, fem: true },
+  mentoria: { label: "Mentoria", plural: "mentorias", icon: GraduationCap, color: "#7c3aed", duracao: 90, fem: true },
+  ligacao: { label: "Ligação", plural: "ligações", icon: PhoneCall, color: "#ea7317", duracao: 30, fem: true },
+  outro: { label: "Compromisso", plural: "compromissos", icon: CalendarClock, color: "#7d8a96", duracao: 60 },
+};
+
+export const TIPO_ORDEM: TipoCompromisso[] = ["diagnostico", "reuniao", "mentoria", "ligacao", "outro"];
+
+export interface StatusDef {
+  label: string;
+  icon: LucideIcon;
+  color: string;
+  /** Conta como compromisso que ainda vai acontecer. */
+  aberto: boolean;
+}
+
+export const STATUS_COMPROMISSO: Record<StatusCompromisso, StatusDef> = {
+  agendado: { label: "Agendado", icon: CalendarClock, color: "var(--ink-3)", aberto: true },
+  confirmado: { label: "Confirmado", icon: CalendarCheck2, color: "var(--sky)", aberto: true },
+  realizado: { label: "Realizado", icon: CircleCheckBig, color: "var(--ok)", aberto: false },
+  faltou: { label: "Não compareceu", icon: UserRoundX, color: "var(--coral)", aberto: false },
+  cancelado: { label: "Cancelado", icon: CalendarX2, color: "var(--ink-3)", aberto: false },
+};
+
+export const STATUS_ORDEM: StatusCompromisso[] = ["agendado", "confirmado", "realizado", "faltou", "cancelado"];
+
+export function tipoDef(t: string): TipoDef {
+  return TIPOS_COMPROMISSO[t as TipoCompromisso] ?? TIPOS_COMPROMISSO.outro;
+}
+export function statusDef(s: string): StatusDef {
+  return STATUS_COMPROMISSO[s as StatusCompromisso] ?? STATUS_COMPROMISSO.agendado;
+}
+
+export const WEEKDAYS_LONG = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+export const MONTHS_LONG = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
 /* ── Follow-up automático: intervalo máximo sem contato, por etapa (nome) ── */
 export const FOLLOWUP_RULES = [
   { match: ["primeiro contato", "first contact"], days: 2, label: "1º contato", color: "#8b5cf6" },
@@ -78,6 +139,7 @@ export const FOLLOWUP_RULES = [
 /* ── Perfis de acesso (mesmos valores de user_profiles.role) ── */
 export type PageKey =
   | "painel"
+  | "agenda"
   | "kanban"
   | "leads"
   | "funis"
@@ -91,10 +153,10 @@ export type PageKey =
   | "usuarios";
 
 export const ROLE_PAGES: Record<Role, PageKey[]> = {
-  admin: ["painel", "kanban", "leads", "importar", "funis", "relatorios", "estagiario", "thiago", "abordagem", "marketing", "elo", "usuarios"],
-  dev: ["painel", "kanban", "leads", "importar", "funis", "relatorios", "estagiario", "thiago", "abordagem", "marketing", "elo", "usuarios"],
-  estagiario: ["painel", "kanban", "leads", "importar", "funis", "relatorios", "estagiario", "abordagem", "elo"],
-  marketing: ["painel", "leads", "relatorios", "marketing"],
+  admin: ["painel", "agenda", "kanban", "leads", "importar", "funis", "relatorios", "estagiario", "thiago", "abordagem", "marketing", "elo", "usuarios"],
+  dev: ["painel", "agenda", "kanban", "leads", "importar", "funis", "relatorios", "estagiario", "thiago", "abordagem", "marketing", "elo", "usuarios"],
+  estagiario: ["painel", "agenda", "kanban", "leads", "importar", "funis", "relatorios", "estagiario", "abordagem", "elo"],
+  marketing: ["painel", "agenda", "leads", "relatorios", "marketing"],
 };
 
 export const ROLE_LABEL: Record<Role, string> = { admin: "Admin", dev: "Dev", estagiario: "Estagiário", marketing: "Marketing" };

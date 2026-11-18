@@ -2,13 +2,14 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { motion } from "motion/react";
-import { ArrowUpRight, PartyPopper } from "lucide-react";
+import { ArrowUpRight, CalendarDays, PartyPopper } from "lucide-react";
 import { useCRM } from "@/lib/store";
-import { ORIGINS, origin } from "@/lib/constants";
-import { isClosed, isOperationalFunnel } from "@/lib/domain";
-import { addDays, fmtMoneyCompact, isOp, pct, plural, today } from "@/lib/utils";
+import { ORIGINS, origin, tipoDef } from "@/lib/constants";
+import { isClosed, isOperationalFunnel, proximosCompromissos } from "@/lib/domain";
+import { addDays, fmtDate, fmtMoneyCompact, isOp, pct, plural, today } from "@/lib/utils";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
 import { Card, CardHead, Empty } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
 import { Segmented } from "@/components/ui/segmented";
 import { CountUp } from "@/components/ui/count-up";
 import { Columns, HBars, SplitBar } from "@/components/charts/bars";
@@ -31,6 +32,51 @@ function Kpi({ label, value, format, sub, accent, i }: { label: string; value: n
       </div>
       <CountUp value={value} format={format} className="tabular font-display text-[28px] font-semibold leading-none tracking-tight" />
     </motion.div>
+  );
+}
+
+/** Agenda de hoje e dos próximos dias, para abrir o CRM já sabendo o que tem marcado. */
+function AgendaDoDia() {
+  const { agenda, can } = useCRM();
+  const t = today();
+  const proximos = useMemo(() => proximosCompromissos(agenda, 14, t).slice(0, 5), [agenda, t]);
+  const hoje = proximos.filter((c) => c.data === t).length;
+  if (!can("agenda")) return null;
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHead
+        title="Na agenda"
+        subtitle={hoje ? `${plural(hoje, "compromisso hoje", "compromissos hoje")}` : proximos.length ? "Nada hoje; o que vem a seguir" : "Nada marcado nos próximos 14 dias"}
+      >
+        <Link href="/agenda" className="text-[13px] font-semibold text-brand hover:underline">Abrir</Link>
+      </CardHead>
+      {proximos.length ? (
+        <ul className="divide-y divide-line border-t border-line">
+          {proximos.map((c) => {
+            const def = tipoDef(c.tipo);
+            const Icon = def.icon;
+            const ehHoje = c.data === t;
+            return (
+              <li key={c.id} className="flex items-center gap-3 px-5 py-2.5">
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg" style={{ background: `color-mix(in oklab, ${def.color} 13%, transparent)`, color: def.color }}>
+                  <Icon className="size-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13.5px] font-semibold text-ink">{c.leadNome || c.titulo}</span>
+                  <span className="tabular block text-[12px] text-ink-3">
+                    {ehHoje ? "Hoje" : fmtDate(c.data)}{c.hora && ` · ${c.hora}`} · {def.label}
+                  </span>
+                </span>
+                {ehHoje && <Chip color="var(--brand)">Hoje</Chip>}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <Empty icon={CalendarDays} title="Agenda livre" className="py-7" />
+      )}
+    </Card>
   );
 }
 
@@ -133,6 +179,7 @@ export default function PainelPage() {
           </Card>
 
           <div className="flex flex-col gap-5">
+          <AgendaDoDia />
           <Card className="px-5 py-1.5">
             <Kpi i={0} label="Leads operacionais" value={m.total} sub="Sem a planilha importada" accent="var(--sky)" />
             <Kpi i={1} label="Pipeline" value={m.pipeline} format={fmtMoneyCompact} sub="Soma dos valores estimados" accent="var(--brand)" />

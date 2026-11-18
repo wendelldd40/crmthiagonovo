@@ -4,9 +4,9 @@ import { IS_DEMO, SETTING, TAG_ABORDADO, TAG_ELO } from "./config";
 import { demoBackend } from "./api/demo";
 import { supabaseBackend } from "./api/supabase";
 import type { Backend } from "./api/types";
-import { leadPatchToDb, leadToDb, mapFunnel, mapLead, mapMentorship, mapTask, mentorshipToDb, taskToDb } from "./mappers";
-import type { CurrentUser, Funnel, Lead, Mentorship, Stage, Task, TaskStatus } from "./types";
-import { ROLE_CAN_EDIT, ROLE_PAGES, type PageKey } from "./constants";
+import { agendaToDb, leadPatchToDb, leadToDb, mapAgenda, mapFunnel, mapLead, mapMentorship, mapTask, mentorshipToDb, taskToDb } from "./mappers";
+import type { Compromisso, CurrentUser, Funnel, Lead, Mentorship, Stage, StatusCompromisso, Task, TaskStatus } from "./types";
+import { ROLE_CAN_EDIT, ROLE_PAGES, TIPOS_COMPROMISSO, type PageKey } from "./constants";
 import { findFunnel, findStage, leadPerfil } from "./domain";
 import { prepareLead, type EloResult } from "./elo";
 import { addDays, fmtDate, pool, today } from "./utils";
@@ -30,9 +30,13 @@ export type DialogState =
   | { kind: "move"; leadId: string }
   | { kind: "task"; taskId?: string }
   | { kind: "mentorship"; mentorshipId?: string }
+  | { kind: "agenda"; agendaId?: string; leadId?: string; data?: string }
   | { kind: "elo"; leadIds: string[] }
   | { kind: "confirm"; title: string; body: string; confirm: string; run: () => Promise<void> | void }
   | null;
+
+/** Campos preenchidos no formulário; o resto (quem marcou, quando) é do sistema. */
+export type AgendaForm = Omit<Compromisso, "id" | "marcadoPorId" | "marcadoPorNome" | "marcadoEm" | "createdAt">;
 
 export interface EloSyncSummary {
   enviados: number;
@@ -48,6 +52,7 @@ interface Ctx {
   leads: Lead[];
   tasks: Task[];
   mentorships: Mentorship[];
+  agenda: Compromisso[];
   settings: Record<string, string>;
   reload: () => Promise<void>;
   signIn: (email: string, pass: string) => Promise<string | null>;
@@ -89,6 +94,11 @@ interface Ctx {
   saveMentorship: (data: Omit<Mentorship, "id">, editingId?: string) => Promise<void>;
   deleteMentorship: (id: string) => Promise<void>;
 
+  /** Agenda. Quem marcou é preenchido sozinho com o usuário logado. */
+  saveAgenda: (data: AgendaForm, editingId?: string) => Promise<Compromisso | null>;
+  deleteAgenda: (id: string) => Promise<void>;
+  setAgendaStatus: (id: string, status: StatusCompromisso) => Promise<void>;
+
   setSetting: (key: string, value: string) => Promise<void>;
   syncToElo: (ids: string[], extraTags: string[], onProgress?: (done: number, total: number) => void, cadencia?: { nome: string; zerar: boolean }) => Promise<EloSyncSummary>;
   registrarLigacao: (id: string, nota: string) => Promise<boolean>;
@@ -112,6 +122,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [mentorships, setMentorships] = useState<Mentorship[]>([]);
+  const [agenda, setAgenda] = useState<Compromisso[]>([]);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [activeFunnelId, setActiveFunnelIdState] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -123,11 +134,15 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const leadsRef = useRef(leads);
   const funnelsRef = useRef(funnels);
   const settingsRef = useRef(settings);
+  const agendaRef = useRef(agenda);
+  const userRef = useRef(user);
   useLayoutEffect(() => {
     leadsRef.current = leads;
     funnelsRef.current = funnels;
     settingsRef.current = settings;
-  }, [leads, funnels, settings]);
+    agendaRef.current = agenda;
+    userRef.current = user;
+  }, [leads, funnels, settings, agenda, user]);
 
   const dismissToast = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
   const toast = useCallback(
@@ -155,6 +170,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       setLeads(raw.leads.map(mapLead));
       setTasks(raw.tasks.map(mapTask));
       setMentorships(raw.mentorships.map(mapMentorship));
+      setAgenda(raw.agenda.map(mapAgenda));
       setSettings(Object.fromEntries(raw.settings.map((s) => [s.key, s.value ?? ""])));
       let saved: string | null = null;
       try {
@@ -187,6 +203,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       const lead = mapLead(row);
       setLeads((ls) => (ls.some((x) => x.id === id) ? ls.map((x) => (x.id === id ? lead : x)) : [lead, ...ls]));
     });
+    // a agenda é preenchida por mais de uma pessoa: a tela precisa ver o que o outro marcou
+    const pararAgenda = backend.watchAgenda((tipo, row) => {
+      const id = String(row.id ?? "");
+      if (!id) return;
+      if (tipo === "DELETE") return setAgenda((as) => as.filter((x) => x.id !== id));
+      const c = mapAgenda(row);
+      setAgenda((as) => (as.some((x) => x.id === id) ? as.map((x) => (x.id === id ? c : x)) : [...as, c]));
+    });
     let ultima = Date.now();
     const atualizar = async (forcar = false) => {
       if (document.visibilityState !== "visible") return;
@@ -196,6 +220,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         const raw = await backend.loadAll();
         setLeads(raw.leads.map(mapLead));
         setTasks(raw.tasks.map(mapTask));
+        setAgenda(raw.agenda.map(mapAgenda));
       } catch {
         /* sem rede: tenta de novo na próxima */
       }
@@ -206,6 +231,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener("focus", aoVoltar);
     return () => {
       parar();
+      pararAgenda();
       clearInterval(timer);
       document.removeEventListener("visibilitychange", aoVoltar);
       window.removeEventListener("focus", aoVoltar);
@@ -240,6 +266,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setFunnels([]);
     setTasks([]);
     setMentorships([]);
+    setAgenda([]);
   }, []);
 
   const confirm = useCallback<Ctx["confirm"]>((title, body, confirmLabel, run) => setDialog({ kind: "confirm", title, body, confirm: confirmLabel, run }), []);
@@ -654,6 +681,81 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     [fail, toast],
   );
 
+  /* ───────── Agenda ───────── */
+  const saveAgenda = useCallback<Ctx["saveAgenda"]>(
+    async (data, editingId) => {
+      const u = userRef.current;
+      try {
+        if (editingId) {
+          const ex = agendaRef.current.find((c) => c.id === editingId);
+          if (!ex) return null;
+          const next: Compromisso = { ...ex, ...data };
+          await backend.update("agenda", editingId, agendaToDb(next));
+          setAgenda((as) => as.map((c) => (c.id === editingId ? next : c)));
+          toast("Compromisso atualizado");
+          return next;
+        }
+        // quem marcou sai do login — ninguém digita isso
+        const row = await backend.insert(
+          "agenda",
+          agendaToDb({ ...data, marcadoPorId: u?.id ?? null, marcadoPorNome: u?.name ?? "" }),
+        );
+        const c = mapAgenda(row);
+        setAgenda((as) => [...as, c]);
+        // o lead guarda no histórico que foi agendado, para aparecer na linha do tempo dele
+        if (c.leadId) {
+          const d = TIPOS_COMPROMISSO[c.tipo];
+          const quando = `${fmtDate(c.data)}${c.hora ? ` às ${c.hora}` : ""}`;
+          void patchLead(c.leadId, {}, `${d.label} ${d.fem ? "marcada" : "marcado"} para ${quando} por ${u?.name || "equipe"}`);
+        }
+        toast("Compromisso marcado");
+        return c;
+      } catch (e) {
+        fail(e);
+        return null;
+      }
+    },
+    [fail, patchLead, toast],
+  );
+
+  const deleteAgenda = useCallback(
+    async (id: string) => {
+      try {
+        await backend.remove("agenda", id);
+        setAgenda((as) => as.filter((c) => c.id !== id));
+        toast("Compromisso excluído");
+      } catch (e) {
+        fail(e);
+      }
+    },
+    [fail, toast],
+  );
+
+  const setAgendaStatus = useCallback(
+    async (id: string, status: StatusCompromisso) => {
+      const prev = agendaRef.current.find((c) => c.id === id);
+      if (!prev) return;
+      setAgenda((as) => as.map((c) => (c.id === id ? { ...c, status } : c)));
+      try {
+        await backend.update("agenda", id, { status });
+        if (prev.leadId && (status === "realizado" || status === "faltou")) {
+          const d = TIPOS_COMPROMISSO[prev.tipo];
+          void patchLead(
+            prev.leadId,
+            {},
+            status === "realizado"
+              ? `${d.label} ${d.fem ? "realizada" : "realizado"}`
+              : `Não compareceu ${d.fem ? "à" : "ao"} ${d.label.toLowerCase()}`,
+          );
+        }
+      } catch (e) {
+        setAgenda((as) => as.map((c) => (c.id === id ? prev : c)));
+        fail(e);
+      }
+    },
+    [fail, patchLead],
+  );
+
   const setSetting = useCallback(
     async (key: string, value: string) => {
       const prev = settingsRef.current[key];
@@ -671,14 +773,15 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<Ctx>(
     () => ({
-      ready, loadError, user, funnels, leads, tasks, mentorships, settings, reload: load, signIn, signOut, can, canEdit,
+      ready, loadError, user, funnels, leads, tasks, mentorships, agenda, settings, reload: load, signIn, signOut, can, canEdit,
       activeFunnelId, setActiveFunnelId, detailId, openLead: setDetailId, closeLead: () => setDetailId(null),
       dialog, setDialog, toasts, toast, dismissToast, confirm,
       saveLead, importLeads, patchLead, moveLeadTo, deleteLead, addNote, snoozeFollowUp, markFollowUpDone, markAbordado,
       saveFunnel, deleteFunnel, saveStages, saveTask, deleteTask, setTaskStatus, saveMentorship, deleteMentorship,
+      saveAgenda, deleteAgenda, setAgendaStatus,
       setSetting, syncToElo, registrarLigacao,
     }),
-    [ready, loadError, user, funnels, leads, tasks, mentorships, settings, load, signIn, signOut, can, canEdit, activeFunnelId, setActiveFunnelId, detailId, dialog, toasts, toast, dismissToast, confirm, saveLead, importLeads, patchLead, moveLeadTo, deleteLead, addNote, snoozeFollowUp, markFollowUpDone, markAbordado, saveFunnel, deleteFunnel, saveStages, saveTask, deleteTask, setTaskStatus, saveMentorship, deleteMentorship, setSetting, syncToElo, registrarLigacao],
+    [ready, loadError, user, funnels, leads, tasks, mentorships, agenda, settings, load, signIn, signOut, can, canEdit, activeFunnelId, setActiveFunnelId, detailId, dialog, toasts, toast, dismissToast, confirm, saveLead, importLeads, patchLead, moveLeadTo, deleteLead, addNote, snoozeFollowUp, markFollowUpDone, markAbordado, saveFunnel, deleteFunnel, saveStages, saveTask, deleteTask, setTaskStatus, saveMentorship, deleteMentorship, saveAgenda, deleteAgenda, setAgendaStatus, setSetting, syncToElo, registrarLigacao],
   );
 
   return <C.Provider value={value}>{children}</C.Provider>;

@@ -4,7 +4,7 @@ import type { UserRow } from "@/lib/types";
 import { addDays, today, uid } from "@/lib/utils";
 import type { Backend, RawSnapshot, Row, Table } from "./types";
 
-const KEY = "thiagocrm-demo-v3";
+const KEY = "thiagocrm-demo-v4";
 const AUTH = "thiagocrm-demo-auth";
 
 function rnd(seed: number) {
@@ -149,11 +149,65 @@ function seed(): RawSnapshot & { users: UserRow[] } {
     { ...ment("VetCare Jardins", "Consultoria Avulsa", 3, 1, 2, mStart(-5), 1800, {}), active: false },
   ];
 
+  /* ── Agenda: diagnósticos e reuniões marcados pela equipe ── */
+  const equipe = [
+    { id: "demo-wendell", nome: "Wendell" },
+    { id: "demo-admin", nome: "Thiago Alemão" },
+    { id: "demo-mkt", nome: "Maria Clara" },
+  ];
+  const comLead = leads.filter((l) => l.phone && !l.tags?.includes("planilha"));
+  const agenda: Row[] = [
+    { dias: -6, hora: "09:00", tipo: "diagnostico", status: "realizado", por: 0, resp: 1 },
+    { dias: -4, hora: "15:30", tipo: "reuniao", status: "realizado", por: 0, resp: 1 },
+    { dias: -2, hora: "10:00", tipo: "diagnostico", status: "faltou", por: 2, resp: 1 },
+    { dias: -1, hora: "14:00", tipo: "ligacao", status: "realizado", por: 0, resp: 0 },
+    { dias: 0, hora: "09:30", tipo: "diagnostico", status: "confirmado", por: 0, resp: 1 },
+    { dias: 0, hora: "16:00", tipo: "reuniao", status: "agendado", por: 1, resp: 1 },
+    { dias: 1, hora: "11:00", tipo: "diagnostico", status: "confirmado", por: 0, resp: 1 },
+    { dias: 2, hora: "08:30", tipo: "mentoria", status: "agendado", por: 1, resp: 1 },
+    { dias: 3, hora: "17:00", tipo: "diagnostico", status: "agendado", por: 2, resp: 1 },
+    { dias: 5, hora: "10:30", tipo: "reuniao", status: "agendado", por: 0, resp: 1 },
+    { dias: 8, hora: "14:30", tipo: "diagnostico", status: "agendado", por: 0, resp: 1 },
+    { dias: 12, hora: "09:00", tipo: "mentoria", status: "agendado", por: 1, resp: 1 },
+  ].map((a, i) => {
+    const lead = comLead[i % comLead.length];
+    const quem = equipe[a.por];
+    const resp = equipe[a.resp];
+    const titulos: Record<string, string> = {
+      diagnostico: "Diagnóstico financeiro",
+      reuniao: "Reunião de alinhamento",
+      mentoria: "Sessão de mentoria",
+      ligacao: "Ligação de retomada",
+    };
+    return {
+      id: uid(),
+      titulo: titulos[a.tipo] ?? "Compromisso",
+      tipo: a.tipo,
+      status: a.status,
+      data: addDays(t, a.dias),
+      hora: `${a.hora}:00`,
+      duracao_min: a.tipo === "ligacao" ? 30 : a.tipo === "mentoria" ? 90 : 60,
+      lead_id: lead?.id ?? null,
+      lead_nome: (lead?.name as string) ?? "",
+      lead_telefone: (lead?.phone as string) ?? "",
+      responsavel_id: resp.id,
+      responsavel_nome: resp.nome,
+      marcado_por_id: quem.id,
+      marcado_por_nome: quem.nome,
+      marcado_em: new Date(Date.now() - (Math.abs(a.dias) + 3) * 86400000).toISOString(),
+      local: a.tipo === "ligacao" ? "" : "https://meet.google.com/abc-defg-hij",
+      observacoes: i % 4 === 0 ? "Pediu para falar primeiro sobre precificação de cirurgias." : null,
+      valor: a.tipo === "diagnostico" ? 197 : 0,
+      created_at: new Date(Date.now() - (Math.abs(a.dias) + 3) * 86400000).toISOString(),
+    };
+  });
+
   return {
     funnels,
     leads,
     tasks,
     mentorships,
+    agenda,
     settings: [{ key: "estagiario_obs", value: "Thiago, separei 6 leads da planilha que já responderam. Preciso de um horário seu na quinta para reunião com a Ana Beatriz." }],
     users: [
       { id: "demo-admin", email: "thiago@demo.local", name: "Thiago Alemão", role: "admin", avatar: "T", created_at: "2025-01-01" },
@@ -193,6 +247,9 @@ export const demoBackend: Backend = {
   watchLeads() {
     return () => {};
   },
+  watchAgenda() {
+    return () => {};
+  },
   async session() {
     let id: string | null = null;
     try {
@@ -223,7 +280,7 @@ export const demoBackend: Backend = {
   async loadAll() {
     await wait(250);
     const db = read();
-    return { funnels: db.funnels, leads: db.leads, tasks: db.tasks, mentorships: db.mentorships, settings: db.settings };
+    return { funnels: db.funnels, leads: db.leads, tasks: db.tasks, mentorships: db.mentorships, agenda: db.agenda ?? [], settings: db.settings };
   },
   async insert(table: Table, row: Row) {
     await wait();

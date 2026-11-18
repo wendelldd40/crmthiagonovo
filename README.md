@@ -22,7 +22,7 @@ Para usar os dados reais, copie `.env.example` para `.env.local` e preencha:
 | `ELO_API_URL` | Endereço do Elo na Vercel, sem barra no final |
 | `ELO_API_KEY` | Chave criada no Elo em **Integrador → API** (começa com `elo_`) |
 | `ELO_WEBHOOK_SECRET` | Segredo do webhook criado no Elo (Integrador → Webhooks) para a esteira |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase do CRM, Settings → API. Só servidor: grava a esteira que chega do Elo |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase do CRM, Settings → API. Só servidor: grava a esteira que chega do Elo e serve a agenda para o calendário do celular |
 
 `ELO_API_KEY`, `ELO_WEBHOOK_SECRET` e `SUPABASE_SERVICE_ROLE_KEY` **não** têm `NEXT_PUBLIC_` de propósito: ficam só no servidor.
 
@@ -39,6 +39,7 @@ O CRM deixou de ser um HTML estático porque o envio ao Elo precisa de um servid
 
 | Tela | O que faz |
 |---|---|
+| **Agenda** | Diagnósticos, reuniões, mentorias e ligações com data, hora e duração. Registra sozinho **quem marcou** cada um. Visões Próximos / Mês / Tudo, comparecimento do mês, lista de "sem baixa" e sincronização com o calendário do celular |
 | **Painel** | Abre com quem precisa ser contatado agora (atrasados, marcados para hoje, parados na etapa). Indicadores, Instagram DM, canais, qualidade do lead, funis, origens, leads novos por semana |
 | **Kanban** | Arrastar e soltar com dnd-kit (mouse, toque e teclado). No celular, segure o cartão antes de arrastar. Filtro por funil, alertas de follow-up no cartão, soma de valor por etapa |
 | **Leads** | Tabela com busca e filtros (funil, origem, perfil, Elo), seleção em lote, exportação CSV, envio em lote ao Elo |
@@ -113,6 +114,32 @@ Nos dois casos você escolhe funil, etapa e etiquetas. "Lista de prospecção" g
 
 Custo (tabela da Google em out/2026): cada busca de até 20 resultados com telefone é cobrada como *Text Search Enterprise*: 1.000 buscas grátis por mês, depois US$ 35 a cada 1.000. Uma busca de 3 tipos numa cidade, com "Carregar mais" até o fim, gasta até 9 buscas.
 
+## Agenda (v2.8)
+
+Tela **Agenda** no menu (e no menu inferior do celular). Para marcar, use o botão **Agendar** — na própria Agenda, no painel de qualquer lead ou no Painel.
+
+**Antes de usar, rode `supabase/agenda.sql` uma vez** no SQL Editor do Supabase do CRM. O arquivo só **cria** a tabela `agenda` e os índices — não encosta em `leads`, `funnels`, `tasks` nem em nada que já existe, e pode ser rodado de novo sem problema. Enquanto o SQL não roda, o CRM continua funcionando normal e a Agenda aparece vazia (não quebra).
+
+**Quem marcou sai do login, ninguém digita.** Ao salvar, o CRM grava quem estava logado e a data/hora do registro. A linha do compromisso mostra *"Conduz Fulano · Marcado por Beltrano em 11/11/26"*, o card **Quem marcou** divide o mês por pessoa (clique no nome para filtrar) e o histórico do lead ganha *"Diagnóstico marcado para 14/11 às 14:30 por Beltrano"*.
+
+Cada compromisso tem tipo (diagnóstico, reunião, mentoria, ligação, compromisso), situação (agendado, confirmado, realizado, não compareceu, cancelado), lead ligado (ou só o nome), responsável, local, valor e observações. Deixar a hora em branco vira compromisso de dia inteiro.
+
+### Juntar com a agenda do celular
+
+Na Agenda, botão **Sincronizar com o celular**. Ele gera um endereço secreto (fica em `settings.agenda_token`) que o celular **assina uma vez** e depois atualiza sozinho — marcou no CRM, aparece no celular em até uma hora, sem precisar exportar nada de novo.
+
+| Aparelho | Caminho |
+|---|---|
+| **iPhone / iPad** | Botão **Assinar no iPhone** (abre direto) ou Ajustes → Apps → Calendário → Contas → Adicionar → Outra → **Adicionar calendário assinado** e cole o endereço |
+| **Android / Google** | No computador: calendar.google.com → **Outras agendas +** → **Criar com base em URL** → cole o endereço. O app Google Agenda do celular passa a mostrar |
+| **Outlook** | outlook.com/calendar → **Adicionar agenda** → **Assinar da Web** → cole o endereço |
+
+Dá para assinar só uma parte, acrescentando ao endereço: `&tipo=diagnostico` (só os diagnósticos) ou `&responsavel=Thiago` — útil para cada pessoa ter sua agenda no celular.
+
+Fora da assinatura, cada compromisso tem no menu **Adicionar ao Google Agenda** e **Baixar para o calendário (.ics)**, que funciona em qualquer aplicativo de calendário.
+
+Detalhes: o endereço precisa do `SUPABASE_SERVICE_ROLE_KEY` na Vercel (já é a mesma variável da esteira do Elo). O calendário traz 6 meses para trás e 18 para frente, no fuso de São Paulo, com lembrete 30 minutos antes (10 minutos nas ligações); cancelados vão como cancelados e não ocupam o horário. Quem tiver o endereço vê a agenda — se vazar, é só gerar outro na mesma tela, que o antigo para de funcionar.
+
 ### Segurança (v2.7)
 
 - Next.js 16.4.0 → 16.4.2 (corrige falha crítica de execução remota de código, GHSA-2464-fhr4-w9xw).
@@ -144,6 +171,7 @@ O webhook do Elo também cria lead para quem chegou pelo Instagram, só com o @ 
 
 ```
 src/app/(app)/        telas (uma pasta por rota)
+src/app/api/agenda/   endereço do calendário assinado pelo celular (.ics)
 src/app/api/elo/      rotas do servidor que falam com o Elo
 src/app/login/        login
 src/components/crm/   painel do lead, formulários, tabela, follow-ups, envio ao Elo
@@ -151,5 +179,8 @@ src/components/shell/ menu, busca global, tema, avisos
 src/components/ui/    botões, campos, modais, chips
 src/lib/              tipos, regras de negócio (domain.ts), estado (store.tsx), mapeamento do banco
 src/lib/api/          Supabase real e modo demonstração
+src/lib/ics.ts        gera o calendário no padrão dos celulares (RFC 5545)
 src/server/           autenticação e cliente do Elo (só servidor)
+supabase/agenda.sql   cria a tabela da agenda (rodar uma vez)
+tests/                esteira, importação e calendário (`npm test`)
 ```

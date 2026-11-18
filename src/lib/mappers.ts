@@ -1,5 +1,5 @@
 /* Conversão linha do banco ↔ objeto da tela. Idênticos aos do CRM antigo. */
-import type { Funnel, Lead, Mentorship, Task } from "./types";
+import type { Compromisso, Funnel, Lead, Mentorship, StatusCompromisso, Task, TipoCompromisso } from "./types";
 import { today } from "./utils";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -76,6 +76,60 @@ export function mapMentorship(r: Row): Mentorship {
     scheduleIntervalDays: r.schedule_interval_days || null,
     scheduleSessions: r.schedule_sessions || [],
   };
+}
+
+/** O banco devolve "14:30:00"; a tela usa "14:30". Vazio = dia inteiro. */
+function horaCurta(v: unknown) {
+  const s = String(v ?? "");
+  return /^\d{2}:\d{2}/.test(s) ? s.slice(0, 5) : "";
+}
+
+export function mapAgenda(r: Row): Compromisso {
+  return {
+    id: r.id,
+    titulo: r.titulo || "",
+    tipo: (r.tipo || "diagnostico") as TipoCompromisso,
+    status: (r.status || "agendado") as StatusCompromisso,
+    data: (r.data || "").slice(0, 10),
+    hora: horaCurta(r.hora),
+    duracaoMin: Number(r.duracao_min) || 60,
+    leadId: r.lead_id ?? null,
+    leadNome: r.lead_nome || "",
+    leadTelefone: r.lead_telefone || "",
+    responsavelId: r.responsavel_id ?? null,
+    responsavelNome: r.responsavel_nome || "",
+    marcadoPorId: r.marcado_por_id ?? null,
+    marcadoPorNome: r.marcado_por_nome || "",
+    marcadoEm: r.marcado_em || r.created_at || "",
+    local: r.local || "",
+    observacoes: r.observacoes || "",
+    valor: Number(r.valor) || 0,
+    createdAt: r.created_at || "",
+  };
+}
+
+export function agendaToDb(c: Partial<Compromisso>) {
+  const out: Record<string, unknown> = {};
+  const put = (col: string, v: unknown) => {
+    if (v !== undefined) out[col] = v;
+  };
+  put("titulo", c.titulo?.trim());
+  put("tipo", c.tipo);
+  put("status", c.status);
+  put("data", c.data || undefined);
+  if (c.hora !== undefined) out.hora = c.hora ? `${c.hora}:00` : null;
+  put("duracao_min", c.duracaoMin);
+  if (c.leadId !== undefined) out.lead_id = c.leadId || null;
+  if (c.leadNome !== undefined) out.lead_nome = c.leadNome || null;
+  if (c.leadTelefone !== undefined) out.lead_telefone = c.leadTelefone || null;
+  if (c.responsavelId !== undefined) out.responsavel_id = c.responsavelId || null;
+  if (c.responsavelNome !== undefined) out.responsavel_nome = c.responsavelNome || null;
+  if (c.marcadoPorId !== undefined) out.marcado_por_id = c.marcadoPorId || null;
+  if (c.marcadoPorNome !== undefined) out.marcado_por_nome = c.marcadoPorNome || null;
+  if (c.local !== undefined) out.local = c.local || null;
+  if (c.observacoes !== undefined) out.observacoes = c.observacoes || null;
+  put("valor", c.valor ?? 0);
+  return out;
 }
 
 export function leadToDb(l: Partial<Lead>) {

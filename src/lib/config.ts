@@ -15,6 +15,8 @@ export const SETTING = {
   eloCadencia: "elo_cadencia_padrao",
   scriptGestor: "script_global_gestor",
   scriptAutonomo: "script_global_autonomo",
+  /** Token do feed de calendário (/api/agenda/ics) que o celular assina. */
+  agendaToken: "agenda_token",
 } as const;
 
 /** Tag que marca leads importados da planilha (fora das métricas operacionais). */

@@ -2,12 +2,13 @@
 import * as D from "@radix-ui/react-dialog";
 import { useState } from "react";
 import { motion } from "motion/react";
-import { ArrowRightLeft, AtSign, Building2, Cable, CalendarClock, Check, Mail, MessageCircle, Pencil, Phone, Send, Trash2, X } from "lucide-react";
+import { ArrowRightLeft, AtSign, Building2, Cable, CalendarClock, CalendarPlus, Check, Mail, MessageCircle, Pencil, Phone, Send, Trash2, X } from "lucide-react";
 import { useCRM } from "@/lib/store";
-import { findFunnel, findStage, followStatus } from "@/lib/domain";
+import { findFunnel, findStage, followStatus, porDataHora } from "@/lib/domain";
+import { statusDef, tipoDef } from "@/lib/constants";
 import { TAG_ELO } from "@/lib/config";
 import { normalizePhone } from "@/lib/elo";
-import { cn, fmtDate, fmtDateTime, fmtMoney, phoneFmt } from "@/lib/utils";
+import { cn, fmtDate, fmtDateTime, fmtMoney, phoneFmt, today } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -30,6 +31,46 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h3 className="mb-1 text-[12.5px] font-semibold text-ink-3">{title}</h3>
       {children}
     </section>
+  );
+}
+
+/** Compromissos deste lead: o que já aconteceu e o que está marcado. */
+function AgendaDoLead({ leadId }: { leadId: string }) {
+  const { agenda, setDialog, canEdit } = useCRM();
+  const itens = agenda.filter((c) => c.leadId === leadId).sort(porDataHora);
+  if (!itens.length) return null;
+  const t = today();
+  return (
+    <Section title={`Agenda (${itens.length})`}>
+      <ul className="mt-1 space-y-1.5">
+        {itens.map((c) => {
+          const def = tipoDef(c.tipo);
+          const st = statusDef(c.status);
+          const Icon = def.icon;
+          return (
+            <li key={c.id}>
+              <button
+                type="button"
+                disabled={!canEdit}
+                onClick={() => setDialog({ kind: "agenda", agendaId: c.id })}
+                className={cn("flex w-full items-center gap-2.5 rounded-xl border border-line bg-surface-2 px-3 py-2 text-left transition-colors", canEdit && "hover:border-line-strong")}
+              >
+                <span className="grid size-7 shrink-0 place-items-center rounded-lg" style={{ background: `color-mix(in oklab, ${def.color} 13%, transparent)`, color: def.color }}>
+                  <Icon className="size-3.5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-medium text-ink">{c.titulo}</span>
+                  <span className="tabular block text-[11.5px] text-ink-3">
+                    {fmtDate(c.data)}{c.hora && ` · ${c.hora}`}{c.marcadoPorNome && ` · por ${c.marcadoPorNome}`}
+                  </span>
+                </span>
+                <Chip color={c.data === t && st.aberto ? "var(--brand)" : st.color}>{c.data === t && st.aberto ? "Hoje" : st.label}</Chip>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </Section>
   );
 }
 
@@ -101,6 +142,7 @@ export function LeadDrawer() {
                   )}
                   {canEdit && (
                     <>
+                      <Button size="sm" variant="secondary" onClick={() => setDialog({ kind: "agenda", leadId: l.id })}><CalendarPlus /> Agendar</Button>
                       <Button size="sm" variant="secondary" onClick={() => setDialog({ kind: "lead", leadId: l.id })}><Pencil /> Editar</Button>
                       <Button size="sm" variant="secondary" onClick={() => setDialog({ kind: "move", leadId: l.id })}><ArrowRightLeft /> Mover</Button>
                       {can("elo") && (
@@ -147,6 +189,8 @@ export function LeadDrawer() {
                 )}
 
                 <EsteiraSecao lead={l} />
+
+                <AgendaDoLead leadId={l.id} />
 
                 <Section title="Contato">
                   {l.phone && <Row k="WhatsApp"><span className="inline-flex items-center gap-1.5"><Phone className="size-3.5 text-ink-3" />{phoneFmt(l.phone)}</span></Row>}

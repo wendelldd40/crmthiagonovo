@@ -1,11 +1,11 @@
 "use client";
 import { useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { useCRM } from "@/lib/store";
-import { MENTORSHIP_TYPES, ORIGIN_GROUPS, ORIGINS, PALETTE, WEEKDAYS, MONTHS } from "@/lib/constants";
+import { useCRM, type AgendaForm } from "@/lib/store";
+import { MENTORSHIP_TYPES, ORIGIN_GROUPS, ORIGINS, PALETTE, STATUS_COMPROMISSO, STATUS_ORDEM, TIPO_ORDEM, TIPOS_COMPROMISSO, WEEKDAYS, MONTHS } from "@/lib/constants";
 import { generateSessions, mentorshipEnd } from "@/lib/domain";
-import type { Lead, Mentorship, Priority, ScheduleType, Stage, TaskStatus } from "@/lib/types";
-import { cn, fmtNum, today, uid } from "@/lib/utils";
+import type { Lead, Mentorship, Priority, ScheduleType, Stage, StatusCompromisso, TaskStatus, TipoCompromisso } from "@/lib/types";
+import { cn, fmtDate, fmtNum, initials, matches, phoneFmt, today, uid } from "@/lib/utils";
 import { Modal } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
@@ -465,6 +465,193 @@ function MentorshipDialog({ mentorshipId }: { mentorshipId?: string }) {
   );
 }
 
+/* ─────────────────── Agenda ─────────────────── */
+
+function AgendaDialog({ agendaId, leadId, data }: { agendaId?: string; leadId?: string; data?: string }) {
+  const { agenda, leads, user, saveAgenda, setDialog } = useCRM();
+  const ex = agenda.find((c) => c.id === agendaId);
+  const leadInicial = leads.find((l) => l.id === (ex?.leadId ?? leadId));
+
+  const [f, setF] = useState<AgendaForm>(() =>
+    ex
+      ? { ...ex }
+      : {
+          titulo: "",
+          tipo: "diagnostico",
+          status: "agendado",
+          data: data || today(),
+          hora: "09:00",
+          duracaoMin: TIPOS_COMPROMISSO.diagnostico.duracao,
+          leadId: leadInicial?.id ?? null,
+          leadNome: leadInicial?.name ?? "",
+          leadTelefone: leadInicial?.phone ?? "",
+          responsavelId: null,
+          responsavelNome: "Thiago Alemão",
+          local: "",
+          observacoes: "",
+          valor: 0,
+        },
+  );
+  const [buscaLead, setBuscaLead] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, run] = useBusy();
+  const set = <K extends keyof AgendaForm>(k: K, v: AgendaForm[K]) => setF((p) => ({ ...p, [k]: v }));
+
+  // sugestões de lead enquanto digita (sem carregar a lista inteira na tela)
+  const sugestoes = useMemo(() => {
+    const q = buscaLead.trim();
+    if (q.length < 2) return [];
+    return leads.filter((l) => matches(l, q)).slice(0, 6);
+  }, [buscaLead, leads]);
+
+  const def = TIPOS_COMPROMISSO[f.tipo];
+  const tituloPadrao = f.tipo === "diagnostico" ? "Diagnóstico financeiro" : f.tipo === "reuniao" ? "Reunião de alinhamento" : f.tipo === "mentoria" ? "Sessão de mentoria" : f.tipo === "ligacao" ? "Ligação" : "";
+
+  function escolherTipo(t: TipoCompromisso) {
+    setF((p) => ({
+      ...p,
+      tipo: t,
+      duracaoMin: p.duracaoMin === TIPOS_COMPROMISSO[p.tipo].duracao ? TIPOS_COMPROMISSO[t].duracao : p.duracaoMin,
+    }));
+  }
+
+  function submit(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (!f.data) return setErr("Escolha a data.");
+    const titulo = f.titulo.trim() || tituloPadrao || def.label;
+    void run(async () => {
+      const salvo = await saveAgenda({ ...f, titulo }, agendaId);
+      if (salvo) setDialog(null);
+    });
+  }
+
+  return (
+    <Modal
+      open
+      onOpenChange={(v) => !v && setDialog(null)}
+      size="lg"
+      title={ex ? "Editar compromisso" : "Marcar na agenda"}
+      description={ex ? `Marcado por ${ex.marcadoPorNome || "—"}${ex.marcadoEm ? ` em ${fmtDate(ex.marcadoEm.slice(0, 10))}` : ""}` : `Fica registrado que quem marcou foi ${user?.name || "você"}.`}
+      footer={
+        <>
+          {err && <span className="mr-auto text-[13px] font-medium text-coral">{err}</span>}
+          <Button variant="ghost" onClick={() => setDialog(null)}>Cancelar</Button>
+          <Button onClick={() => submit()} disabled={busy}>
+            {busy && <Loader2 className="animate-spin" />}
+            {ex ? "Salvar" : "Marcar"}
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={submit} className="space-y-4">
+        <div className="space-y-1.5">
+          <p className="text-[13px] font-semibold text-ink-2">Tipo</p>
+          <div className="flex flex-wrap gap-1.5">
+            {TIPO_ORDEM.map((k) => {
+              const d = TIPOS_COMPROMISSO[k];
+              const Icon = d.icon;
+              const on = f.tipo === k;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => escolherTipo(k)}
+                  className={cn("inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-[13px] font-semibold transition-colors", on ? "text-ink" : "border-line bg-surface text-ink-2 hover:border-line-strong")}
+                  style={on ? { borderColor: d.color, background: `color-mix(in oklab, ${d.color} 12%, transparent)`, color: d.color } : undefined}
+                >
+                  <Icon className="size-4" /> {d.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <Field label="Título" hint={!f.titulo.trim() && tituloPadrao ? `Em branco, fica “${tituloPadrao}”.` : undefined}>
+          <Input autoFocus value={f.titulo} onChange={(e) => set("titulo", e.target.value)} placeholder={tituloPadrao || "O que é esse compromisso"} />
+        </Field>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="Data"><Input type="date" value={f.data} onChange={(e) => set("data", e.target.value)} /></Field>
+          <Field label="Hora" hint="Vazio = dia inteiro"><Input type="time" value={f.hora} onChange={(e) => set("hora", e.target.value)} /></Field>
+          <Field label="Duração (min)"><Input type="number" min={15} step={15} value={f.duracaoMin} onChange={(e) => set("duracaoMin", parseInt(e.target.value) || 60)} /></Field>
+        </div>
+
+        <div className="h-px bg-line" />
+
+        {/* ── Com quem ── */}
+        <div className="space-y-1.5">
+          <p className="text-[13px] font-semibold text-ink-2">Lead</p>
+          {f.leadId || f.leadNome ? (
+            <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 py-2">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-soft text-[11px] font-bold text-brand-strong">{initials(f.leadNome)}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13.5px] font-semibold text-ink">{f.leadNome}</span>
+                {f.leadTelefone && <span className="block text-[12px] text-ink-3">{phoneFmt(f.leadTelefone)}</span>}
+              </span>
+              <Button size="xs" variant="ghost" onClick={() => setF((p) => ({ ...p, leadId: null, leadNome: "", leadTelefone: "" }))}>Trocar</Button>
+            </div>
+          ) : (
+            <>
+              <Input value={buscaLead} onChange={(e) => setBuscaLead(e.target.value)} placeholder="Digite o nome, e-mail ou telefone do lead" />
+              {sugestoes.length > 0 && (
+                <div className="grid gap-1 rounded-xl border border-line bg-surface p-1">
+                  {sugestoes.map((l) => (
+                    <button
+                      key={l.id}
+                      type="button"
+                      onClick={() => { setF((p) => ({ ...p, leadId: l.id, leadNome: l.name, leadTelefone: l.phone })); setBuscaLead(""); }}
+                      className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-left hover:bg-sunken"
+                    >
+                      <span className="grid size-7 shrink-0 place-items-center rounded-full bg-sunken text-[11px] font-bold text-ink-2">{initials(l.name)}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-medium text-ink">{l.name}</span>
+                        {(l.company || l.phone) && <span className="block truncate text-[11.5px] text-ink-3">{l.company || phoneFmt(l.phone)}</span>}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {buscaLead.trim().length >= 2 && !sugestoes.length && (
+                <button
+                  type="button"
+                  onClick={() => { setF((p) => ({ ...p, leadNome: buscaLead.trim() })); setBuscaLead(""); }}
+                  className="w-full rounded-xl border border-dashed border-line px-3 py-2 text-left text-[13px] text-ink-3 hover:border-line-strong hover:text-ink-2"
+                >
+                  Nenhum lead encontrado. Usar “<span className="font-medium text-ink-2">{buscaLead.trim()}</span>” só como nome.
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Quem vai conduzir">
+            <Input value={f.responsavelNome} onChange={(e) => set("responsavelNome", e.target.value)} placeholder="Thiago Alemão" />
+          </Field>
+          <Field label="Situação">
+            <Select value={f.status} onChange={(e) => set("status", e.target.value as StatusCompromisso)}>
+              {STATUS_ORDEM.map((s) => <option key={s} value={s}>{STATUS_COMPROMISSO[s].label}</option>)}
+            </Select>
+          </Field>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-[1.6fr_1fr]">
+          <Field label="Link ou local" hint="Google Meet, Zoom ou endereço">
+            <Input value={f.local} onChange={(e) => set("local", e.target.value)} placeholder="https://meet.google.com/..." />
+          </Field>
+          <Field label="Valor (R$)" hint="Para diagnóstico pago">
+            <Input type="number" min={0} step={1} value={f.valor || ""} onChange={(e) => set("valor", parseFloat(e.target.value) || 0)} placeholder="0" />
+          </Field>
+        </div>
+
+        <Field label="Observações">
+          <Textarea rows={2} value={f.observacoes} onChange={(e) => set("observacoes", e.target.value)} placeholder="O que a pessoa pediu, o que levar preparado…" />
+        </Field>
+      </form>
+    </Modal>
+  );
+}
+
 /* ─────────────────── Confirmação ─────────────────── */
 
 function ConfirmDialog({ title, body, confirm, run: action }: { title: string; body: string; confirm: string; run: () => Promise<void> | void }) {
@@ -506,6 +693,8 @@ export function Dialogs() {
       return <TaskDialog taskId={dialog.taskId} />;
     case "mentorship":
       return <MentorshipDialog mentorshipId={dialog.mentorshipId} />;
+    case "agenda":
+      return <AgendaDialog key={dialog.agendaId ?? "novo"} agendaId={dialog.agendaId} leadId={dialog.leadId} data={dialog.data} />;
     case "elo":
       return <EloDialog leadIds={dialog.leadIds} />;
     case "confirm":

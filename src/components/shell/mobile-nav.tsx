@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as D from "@radix-ui/react-dialog";
 import { useState } from "react";
-import { ClipboardList, Kanban, LayoutDashboard, LogOut, Menu as MenuIcon, Plus, Search, Users, X } from "lucide-react";
+import { CalendarDays, Kanban, LayoutDashboard, LogOut, Menu as MenuIcon, Plus, Search, Users, X } from "lucide-react";
 import { useCRM } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { NAV } from "./nav";
@@ -12,10 +12,10 @@ import { ThemeToggle } from "./theme";
 
 const BOTTOM = [
   { href: "/painel", label: "Painel", icon: LayoutDashboard, key: "painel" },
-  { href: "/kanban", label: "Kanban", icon: Kanban, key: "kanban" },
+  { href: "/agenda", label: "Agenda", icon: CalendarDays, key: "agenda" },
   null,
+  { href: "/kanban", label: "Kanban", icon: Kanban, key: "kanban" },
   { href: "/leads", label: "Leads", icon: Users, key: "leads" },
-  { href: "/estagiario", label: "Tarefas", icon: ClipboardList, key: "estagiario" },
 ] as const;
 
 export function MobileTop({ onSearch }: { onSearch: () => void }) {

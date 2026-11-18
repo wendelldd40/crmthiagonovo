@@ -1,9 +1,9 @@
 /* Regras de negócio portadas do CRM antigo, sem mudar comportamento
    (exceto onde marcado como CORREÇÃO). */
-import { FOLLOWUP_RULES, MONTHS } from "./constants";
-import type { Funnel, Lead, Mentorship, Stage } from "./types";
+import { FOLLOWUP_RULES, MONTHS, STATUS_COMPROMISSO, WEEKDAYS_LONG } from "./constants";
+import type { Compromisso, Funnel, Lead, Mentorship, Stage } from "./types";
 import { TAG_ABORDADO, TAG_PLANILHA } from "./config";
-import { daysBetween, digits, isOp, normalizePhone, today } from "./utils";
+import { addDays, daysBetween, digits, isOp, normalizePhone, today } from "./utils";
 
 export const findFunnel = (funnels: Funnel[], id: string | null) => funnels.find((f) => f.id === id);
 export const findStage = (f: Funnel | undefined, id: string | null) => f?.stages.find((s) => s.id === id);
@@ -244,6 +244,100 @@ export function projection(ms: Mentorship[], months = 12) {
       isCurrent: i === 0,
     };
   });
+}
+
+/* ───────────────── Agenda ───────────────── */
+
+/** Ordena por data e hora. Compromisso sem hora (dia inteiro) vem primeiro no dia. */
+export function porDataHora(a: Compromisso, b: Compromisso) {
+  return a.data.localeCompare(b.data) || (a.hora || "00:00").localeCompare(b.hora || "00:00");
+}
+
+export const agendaDoDia = (agenda: Compromisso[], dia: string) => agenda.filter((c) => c.data === dia).sort(porDataHora);
+
+/** O que ainda vai acontecer, de hoje em diante, já ordenado. */
+export function proximosCompromissos(agenda: Compromisso[], dias = 365, now = today()) {
+  const limite = addDays(now, dias);
+  return agenda
+    .filter((c) => c.data >= now && c.data <= limite && STATUS_COMPROMISSO[c.status].aberto)
+    .sort(porDataHora);
+}
+
+/** Marcados para um dia que já passou e ninguém deu baixa — ficam cobrando. */
+export const compromissosPendentes = (agenda: Compromisso[], now = today()) =>
+  agenda.filter((c) => c.data < now && STATUS_COMPROMISSO[c.status].aberto).sort(porDataHora);
+
+/** Quadro do mês: 6 semanas de domingo a sábado, com os compromissos de cada dia. */
+export function gradeDoMes(ano: number, mes: number, agenda: Compromisso[]) {
+  const primeiro = new Date(ano, mes, 1);
+  const inicio = new Date(ano, mes, 1 - primeiro.getDay());
+  const porDia = new Map<string, Compromisso[]>();
+  for (const c of agenda) {
+    const lista = porDia.get(c.data);
+    if (lista) lista.push(c);
+    else porDia.set(c.data, [c]);
+  }
+  for (const lista of porDia.values()) lista.sort(porDataHora);
+  return Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + i);
+    const iso = today(d);
+    return { iso, dia: d.getDate(), doMes: d.getMonth() === mes, itens: porDia.get(iso) ?? [] };
+  });
+}
+
+/** Números do período: quantos de cada tipo, quantos aconteceram, quem marcou. */
+export function resumoAgenda(agenda: Compromisso[]) {
+  const porTipo = new Map<string, number>();
+  const porPessoa = new Map<string, number>();
+  let realizados = 0;
+  let faltas = 0;
+  let cancelados = 0;
+  let abertos = 0;
+  let receita = 0;
+  for (const c of agenda) {
+    porTipo.set(c.tipo, (porTipo.get(c.tipo) ?? 0) + 1);
+    const quem = c.marcadoPorNome || "Sem registro";
+    porPessoa.set(quem, (porPessoa.get(quem) ?? 0) + 1);
+    if (c.status === "realizado") {
+      realizados++;
+      receita += c.valor || 0;
+    } else if (c.status === "faltou") faltas++;
+    else if (c.status === "cancelado") cancelados++;
+    else abertos++;
+  }
+  const fechados = realizados + faltas;
+  return {
+    total: agenda.length,
+    porTipo,
+    porPessoa: [...porPessoa.entries()].sort((a, b) => b[1] - a[1]),
+    realizados,
+    faltas,
+    cancelados,
+    abertos,
+    receita,
+    /** Dos que já deveriam ter acontecido, quantos a pessoa apareceu. */
+    comparecimento: fechados ? Math.round((realizados / fechados) * 100) : null,
+  };
+}
+
+/** Rótulo curto de quando é: Hoje, Amanhã, Ontem ou a data. */
+export function quandoLabel(data: string, now = today()) {
+  const d = daysBetween(now, data);
+  if (d === 0) return "Hoje";
+  if (d === 1) return "Amanhã";
+  if (d === -1) return "Ontem";
+  if (d > 1 && d < 7) return WEEKDAYS_LONG[new Date(data + "T00:00:00").getDay()];
+  return null;
+}
+
+/** Fim do compromisso, para a agenda do celular. */
+export function horaFim(hora: string, duracaoMin: number) {
+  if (!hora) return "";
+  const [h, m] = hora.split(":").map(Number);
+  const total = h * 60 + m + (duracaoMin || 60);
+  const hh = String(Math.floor(total / 60) % 24).padStart(2, "0");
+  const mm = String(total % 60).padStart(2, "0");
+  return `${hh}:${mm}`;
 }
 
 /** Funis que não entram na visão operacional (planilha, gestores, autônomos). */

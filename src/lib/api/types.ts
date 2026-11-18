@@ -1,13 +1,14 @@
 import type { CurrentUser, UserRow } from "@/lib/types";
 
 export type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-export type Table = "funnels" | "leads" | "tasks" | "mentorships";
+export type Table = "funnels" | "leads" | "tasks" | "mentorships" | "agenda";
 
 export interface RawSnapshot {
   funnels: Row[];
   leads: Row[];
   tasks: Row[];
   mentorships: Row[];
+  agenda: Row[];
   settings: { key: string; value: string }[];
 }
 
@@ -29,4 +30,6 @@ export interface Backend {
   updateUser(id: string, patch: Partial<Pick<UserRow, "name" | "role" | "avatar">>): Promise<void>;
   /** Avisa quando um lead muda no banco (ex.: o Elo moveu a esteira). Devolve a função que para de escutar. */
   watchLeads(on: (tipo: "INSERT" | "UPDATE" | "DELETE", row: Row) => void): () => void;
+  /** Avisa quando alguém da equipe marca, muda ou apaga um compromisso. */
+  watchAgenda(on: (tipo: "INSERT" | "UPDATE" | "DELETE", row: Row) => void): () => void;
 }

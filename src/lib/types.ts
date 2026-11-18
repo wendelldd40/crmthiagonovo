@@ -107,6 +107,38 @@ export interface Mentorship {
   scheduleSessions: string[];
 }
 
+/* ───────────────── Agenda ───────────────── */
+
+export type TipoCompromisso = "diagnostico" | "reuniao" | "mentoria" | "ligacao" | "outro";
+export type StatusCompromisso = "agendado" | "confirmado" | "realizado" | "faltou" | "cancelado";
+
+export interface Compromisso {
+  id: string;
+  titulo: string;
+  tipo: TipoCompromisso;
+  status: StatusCompromisso;
+  /** AAAA-MM-DD */
+  data: string;
+  /** HH:MM — vazio significa dia inteiro. */
+  hora: string;
+  duracaoMin: number;
+  leadId: string | null;
+  leadNome: string;
+  leadTelefone: string;
+  /** Quem vai conduzir. */
+  responsavelId: string | null;
+  responsavelNome: string;
+  /** Quem marcou — preenchido sozinho com o usuário logado. */
+  marcadoPorId: string | null;
+  marcadoPorNome: string;
+  marcadoEm: string;
+  /** Link da chamada ou endereço. */
+  local: string;
+  observacoes: string;
+  valor: number;
+  createdAt: string;
+}
+
 export interface CurrentUser {
   id: string;
   email: string;
@@ -129,5 +161,6 @@ export interface Snapshot {
   leads: Lead[];
   tasks: Task[];
   mentorships: Mentorship[];
+  agenda: Compromisso[];
   settings: Record<string, string>;
 }

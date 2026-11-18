@@ -22,6 +22,15 @@ async function fetchAll(table: string, order = "created_at", page = 1000) {
   return all;
 }
 
+/** Igual ao fetchAll, mas volta vazio se a tabela ainda não existe (quem não rodou supabase/agenda.sql). */
+async function fetchOptional(table: string, order = "data") {
+  try {
+    return await fetchAll(table, order);
+  } catch {
+    return [] as Row[];
+  }
+}
+
 async function profile(id: string, email: string): Promise<CurrentUser> {
   const { data } = await sb().from("user_profiles").select("*").eq("id", id).single();
   const role = (data?.role as Role) || "estagiario";
@@ -39,6 +48,17 @@ export const supabaseBackend: Backend = {
     const ch = sb()
       .channel("crm-leads")
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, (p) => {
+        const tipo = p.eventType as "INSERT" | "UPDATE" | "DELETE";
+        on(tipo, (tipo === "DELETE" ? p.old : p.new) as Row);
+      })
+      .subscribe();
+    return () => void sb().removeChannel(ch);
+  },
+  watchAgenda(on) {
+    // precisa da tabela agenda na publicação supabase_realtime (supabase/agenda.sql)
+    const ch = sb()
+      .channel("crm-agenda")
+      .on("postgres_changes", { event: "*", schema: "public", table: "agenda" }, (p) => {
         const tipo = p.eventType as "INSERT" | "UPDATE" | "DELETE";
         on(tipo, (tipo === "DELETE" ? p.old : p.new) as Row);
       })
@@ -67,14 +87,15 @@ export const supabaseBackend: Backend = {
     return (data as Row) ?? null;
   },
   async loadAll() {
-    const [funnels, leads, tasks, mentorships, s] = await Promise.all([
+    const [funnels, leads, tasks, mentorships, agenda, s] = await Promise.all([
       fetchAll("funnels"),
       fetchAll("leads"),
       fetchAll("tasks"),
       fetchAll("mentorships"),
+      fetchOptional("agenda"),
       sb().from("settings").select("*"),
     ]);
-    return { funnels, leads, tasks, mentorships, settings: (s.data ?? []) as { key: string; value: string }[] };
+    return { funnels, leads, tasks, mentorships, agenda, settings: (s.data ?? []) as { key: string; value: string }[] };
   },
   async insert(table: Table, row: Row) {
     const { data, error } = await sb().from(table).insert(row).select().single();
