@@ -6,6 +6,7 @@ import { MONTHS, ORIGINS, origin } from "@/lib/constants";
 import { isClosed } from "@/lib/domain";
 import { fmtMoney, fmtMoneyCompact, isOp, pct } from "@/lib/utils";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
+import { SeletorMes, TUDO, useMesesComLead } from "@/components/crm/seletor-mes";
 import { Card, CardHead } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
 import { CountUp } from "@/components/ui/count-up";
@@ -14,7 +15,14 @@ import { Columns, HBars } from "@/components/charts/bars";
 export default function RelatoriosPage() {
   const { leads, funnels } = useCRM();
   const [scope, setScope] = useState<"todos" | "op">("todos");
-  const base = useMemo(() => (scope === "op" ? leads.filter(isOp) : leads), [leads, scope]);
+  const [mes, setMes] = useState<string>(TUDO);
+  const meses = useMesesComLead(leads);
+  const base = useMemo(() => {
+    const porEscopo = scope === "op" ? leads.filter(isOp) : leads;
+    return mes === TUDO ? porEscopo : porEscopo.filter((l) => l.mesRef === mes);
+  }, [leads, scope, mes]);
+  // a série de 12 meses mostra o histórico inteiro, independente do mês escolhido acima
+  const serie = useMemo(() => (scope === "op" ? leads.filter(isOp) : leads), [leads, scope]);
 
   const r = useMemo(() => {
     const total = base.reduce((s, l) => s + (l.value || 0), 0);
@@ -34,14 +42,15 @@ export default function RelatoriosPage() {
     const months = Array.from({ length: 12 }, (_, i) => {
       const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      return { key, label: MONTHS[d.getMonth()], value: base.filter((l) => l.date.startsWith(key)).length, title: `${MONTHS[d.getMonth()]} ${d.getFullYear()}` };
+      return { key, label: MONTHS[d.getMonth()], value: serie.filter((l) => l.mesRef === key).length, title: `${MONTHS[d.getMonth()]} ${d.getFullYear()}` };
     });
     return { total, byOrigin, byFunnel, months, conv: base.filter((l) => l.converted).length };
-  }, [base, funnels]);
+  }, [base, serie, funnels]);
 
   return (
     <>
-      <PageHeader title="Relatórios" subtitle="Desempenho por funil, origem e mês de entrada">
+      <PageHeader title="Relatórios" subtitle="Desempenho por funil, origem e mês de trabalho">
+        <SeletorMes mes={mes} onChange={setMes} meses={meses} />
         <Segmented size="sm" value={scope} onChange={setScope} options={[{ value: "todos", label: "Todos os leads" }, { value: "op", label: "Sem planilha" }]} />
       </PageHeader>
       <PageBody className="space-y-5">
@@ -60,7 +69,7 @@ export default function RelatoriosPage() {
         </Card>
 
         <Card>
-          <CardHead title="Entrada de leads por mês" subtitle="Últimos 12 meses, pela data de entrada" />
+          <CardHead title="Leads por mês" subtitle="Últimos 12 meses, pelo mês de trabalho — bate com o que o Kanban mostra em cada mês" />
           <div className="px-5 pb-5">
             <Columns data={r.months} height={170} highlight={r.months[r.months.length - 1].key} />
           </div>

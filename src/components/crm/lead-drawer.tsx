@@ -2,16 +2,19 @@
 import * as D from "@radix-ui/react-dialog";
 import { useState } from "react";
 import { motion } from "motion/react";
-import { ArrowRightLeft, AtSign, Building2, Cable, CalendarClock, CalendarPlus, Check, Mail, MessageCircle, Pencil, Phone, Send, Trash2, X } from "lucide-react";
+import { ArrowRightLeft, AtSign, Building2, Cable, CalendarClock, CalendarPlus, Check, ChevronDown, Mail, MessageCircle, Pencil, Phone, Send, Trash2, X } from "lucide-react";
 import { useCRM } from "@/lib/store";
+import type { Lead } from "@/lib/types";
 import { findFunnel, findStage, followStatus, porDataHora } from "@/lib/domain";
 import { statusDef, tipoDef } from "@/lib/constants";
 import { TAG_ELO } from "@/lib/config";
 import { normalizePhone } from "@/lib/elo";
+import { mesAtual, mesDe, mesLabel, mesSoma } from "@/lib/meses";
 import { cn, fmtDate, fmtDateTime, fmtMoney, phoneFmt, today } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import { Tip } from "@/components/ui/tooltip";
 import { ConvertedChip, OriginChip, VetChip } from "./bits";
 import { EsteiraSecao } from "./esteira";
@@ -71,6 +74,38 @@ function AgendaDoLead({ leadId }: { leadId: string }) {
         })}
       </ul>
     </Section>
+  );
+}
+
+/**
+ * Em que mês o lead está sendo trabalhado, e o menu para virá-lo de mês.
+ * É a saída individual para quando a pessoa não quer mover o lote inteiro.
+ */
+function MesDoLead({ l }: { l: Lead }) {
+  const { setLeadMes, canEdit } = useCRM();
+  const atual = mesAtual();
+  const mes = l.mesRef || mesDe(l.date);
+  const atrasado = mes < atual && !l.converted;
+
+  if (!canEdit) return <span className={cn(atrasado && "text-amber")}>{mesLabel(mes)}</span>;
+
+  const opcoes = [...new Set([mesSoma(atual, -1), atual, mesSoma(atual, 1), mes])].sort();
+  return (
+    <Menu>
+      <MenuTrigger asChild>
+        <button className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-sunken", atrasado && "text-amber")}>
+          {mesLabel(mes)} <ChevronDown className="size-3.5 text-ink-3" />
+        </button>
+      </MenuTrigger>
+      <MenuContent align="start" className="w-52">
+        {opcoes.map((m) => (
+          <MenuItem key={m} onSelect={() => void setLeadMes(l.id, m)} className={cn(m === mes && "bg-brand-soft")}>
+            {mesLabel(m)}
+            {m === atual && <span className="ml-auto text-[11.5px] text-ink-3">este mês</span>}
+          </MenuItem>
+        ))}
+      </MenuContent>
+    </Menu>
   );
 }
 
@@ -204,6 +239,7 @@ export function LeadDrawer() {
                   )}
                   {l.company && <Row k="Clínica / empresa"><span className="inline-flex items-center gap-1.5"><Building2 className="size-3.5 text-ink-3" />{l.company}</span></Row>}
                   <Row k="Entrada">{fmtDate(l.date)}</Row>
+                  <Row k="Mês de trabalho"><MesDoLead l={l} /></Row>
                   {l.followUp && <Row k="Próximo contato"><span className={cn(fs === "overdue" && "text-coral", fs === "today" && "text-amber")}>{fmtDate(l.followUp)}</span></Row>}
                   {l.converted && <Row k="Convertido em">{fmtDate(l.convertedDate)} · {l.serviceMonths || 0} {l.serviceMonths === 1 ? "mês" : "meses"} de serviço</Row>}
                 </Section>

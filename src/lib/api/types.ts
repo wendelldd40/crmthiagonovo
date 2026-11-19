@@ -23,6 +23,8 @@ export interface Backend {
   /** insere várias linhas de uma vez (importação) */
   insertMany(table: Table, rows: Row[]): Promise<Row[]>;
   update(table: Table, id: string, patch: Row): Promise<void>;
+  /** aplica o mesmo patch em várias linhas de uma vez (ex.: virar o mês de um lote de leads) */
+  updateMany(table: Table, ids: string[], patch: Row): Promise<void>;
   remove(table: Table, id: string): Promise<void>;
   removeWhere(table: Table, col: string, value: string): Promise<void>;
   setSetting(key: string, value: string): Promise<void>;

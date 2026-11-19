@@ -5,6 +5,7 @@
 import type { Lead } from "./types";
 import { normalize, normalizePhone, telefoneParaCrm, tipoTelefone, today, variantesTelefone } from "./utils";
 import { TAG_PLANILHA } from "./config";
+import { mesAtual } from "./meses";
 
 /* ───────────── campos ───────────── */
 
@@ -193,7 +194,7 @@ export function leadDaLinha(l: LinhaImport, d: Destino, agoraIso: string, fonte 
     origin: d.origin, isVet: true, funnelId: d.funnelId, stageId: d.stageId, value: l.valor, tags,
     notes: [l.observacoes, nota([["Cidade", l.cidade]])].filter(Boolean).join("\n"),
     followUp: "", converted: false, convertedDate: "", serviceMonths: 0,
-    activities: [{ text: `Lead importado (${fonte})`, time: agoraIso }], date: today(),
+    activities: [{ text: `Lead importado (${fonte})`, time: agoraIso }], date: today(), mesRef: mesAtual(),
   };
 }
 
@@ -273,7 +274,7 @@ export function leadDoGoogle(g: LugarGoogle, d: Destino, agoraIso: string): Lead
       ["Google Maps", g.maps],
     ]),
     followUp: "", converted: false, convertedDate: "", serviceMonths: 0,
-    activities: [{ text: "Lead importado (busca no Google Maps)", time: agoraIso }], date: today(),
+    activities: [{ text: "Lead importado (busca no Google Maps)", time: agoraIso }], date: today(), mesRef: mesAtual(),
   };
 }
 

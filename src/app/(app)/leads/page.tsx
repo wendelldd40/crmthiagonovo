@@ -10,6 +10,7 @@ import { TAG_ELO } from "@/lib/config";
 import type { Lead } from "@/lib/types";
 import { matches, plural, today } from "@/lib/utils";
 import { PageBody, PageHeader } from "@/components/shell/page-header";
+import { SeletorMes, TUDO, useMesesComLead } from "@/components/crm/seletor-mes";
 import { Button } from "@/components/ui/button";
 import { Card, Empty } from "@/components/ui/card";
 import { SearchInput, Select } from "@/components/ui/input";
@@ -40,6 +41,9 @@ export default function LeadsPage() {
   const [orig, setOrig] = useState("all");
   const [perfil, setPerfil] = useState("all");
   const [elo, setElo] = useState("all");
+  // a lista geral abre sem recorte; o mês é uma lente opcional aqui
+  const [mes, setMes] = useState<string>(TUDO);
+  const meses = useMesesComLead(leads);
   const [limit, setLimit] = useState(PAGE);
   const [sel, setSel] = useState<Set<string>>(new Set());
 
@@ -50,11 +54,12 @@ export default function LeadsPage() {
         .filter((l) => orig === "all" || l.origin === orig)
         .filter((l) => perfil === "all" || (perfil === "vet" ? l.isVet : perfil === "naovet" ? !l.isVet : perfil === "cliente" ? l.converted : !l.converted))
         .filter((l) => elo === "all" || (elo === "sim" ? l.tags.includes(TAG_ELO) : !l.tags.includes(TAG_ELO)))
+        .filter((l) => mes === TUDO || l.mesRef === mes)
         .filter((l) => matches(l, q))
         .sort((a, b) => b.date.localeCompare(a.date)),
-    [leads, funnel, orig, perfil, elo, q],
+    [leads, funnel, orig, perfil, elo, q, mes],
   );
-  const filtersOn = funnel !== "all" || orig !== "all" || perfil !== "all" || elo !== "all" || !!q;
+  const filtersOn = funnel !== "all" || orig !== "all" || perfil !== "all" || elo !== "all" || mes !== TUDO || !!q;
 
   function toggle(id: string) {
     setSel((s) => {
@@ -106,8 +111,9 @@ export default function LeadsPage() {
               <option value="nao">Fora do Elo</option>
             </Select>
           )}
+          <SeletorMes mes={mes} onChange={(m) => { setMes(m); setLimit(PAGE); }} meses={meses} />
           {filtersOn && (
-            <Button variant="ghost" size="sm" onClick={() => { setQ(""); setFunnel("all"); setOrig("all"); setPerfil("all"); setElo("all"); }}>
+            <Button variant="ghost" size="sm" onClick={() => { setQ(""); setFunnel("all"); setOrig("all"); setPerfil("all"); setElo("all"); setMes(TUDO); }}>
               <X /> Limpar filtros
             </Button>
           )}

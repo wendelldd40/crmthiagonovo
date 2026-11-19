@@ -306,6 +306,14 @@ export const demoBackend: Backend = {
     if (i >= 0) list[i] = { ...list[i], ...patch };
     write(db);
   },
+  async updateMany(table, ids, patch) {
+    await wait(80);
+    const db = read();
+    const list = db[table] as Row[];
+    const alvo = new Set(ids);
+    for (let i = 0; i < list.length; i++) if (alvo.has(list[i].id)) list[i] = { ...list[i], ...patch };
+    write(db);
+  },
   async remove(table, id) {
     await wait();
     const db = read();

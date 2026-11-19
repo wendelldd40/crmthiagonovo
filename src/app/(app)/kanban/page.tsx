@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -20,8 +20,10 @@ import { motion } from "motion/react";
 import { AlarmClock, CalendarClock, Plus, Settings2 } from "lucide-react";
 import { useCRM } from "@/lib/store";
 import { followStatus } from "@/lib/domain";
+import { mesAtual, mesCurto, mesLabel } from "@/lib/meses";
 import type { Funnel, Lead, Stage } from "@/lib/types";
 import { cn, fmtDate, fmtMoney, fmtMoneyCompact, matches } from "@/lib/utils";
+import { SeletorMes, TUDO, useMesesComLead } from "@/components/crm/seletor-mes";
 import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/input";
@@ -36,7 +38,7 @@ const collision: CollisionDetection = (args) => {
   return p.length ? p : rectIntersection(args);
 };
 
-function CardBody({ l, q, dragging }: { l: Lead; q: string; dragging?: boolean }) {
+function CardBody({ l, q, dragging, mostrarMes }: { l: Lead; q: string; dragging?: boolean; mostrarMes?: boolean }) {
   const fs = followStatus(l);
   const alert = !l.converted && (fs === "overdue" || fs === "today") ? fs : null;
   return (
@@ -64,15 +66,18 @@ function CardBody({ l, q, dragging }: { l: Lead; q: string; dragging?: boolean }
         <EsteiraSelo lead={l} />
         {l.tags.filter((t) => !["planilha", "elo"].includes(t)).slice(0, 2).map((t) => <Chip key={t} color="var(--brand)">{t}</Chip>)}
       </div>
-      <div className="mt-2.5 flex items-center justify-between text-[12px]">
+      <div className="mt-2.5 flex items-center justify-between gap-2 text-[12px]">
         <span className="tabular text-ink-3">{fmtDate(l.date)}</span>
-        {l.value > 0 && <span className="tabular font-semibold text-ink">{fmtMoney(l.value)}</span>}
+        <span className="flex items-center gap-2">
+          {mostrarMes && l.mesRef && <span className="tabular rounded-md bg-sunken px-1.5 py-0.5 font-medium text-ink-3">{mesCurto(l.mesRef)}</span>}
+          {l.value > 0 && <span className="tabular font-semibold text-ink">{fmtMoney(l.value)}</span>}
+        </span>
       </div>
     </div>
   );
 }
 
-function DraggableCard({ l, q, disabled }: { l: Lead; q: string; disabled: boolean }) {
+function DraggableCard({ l, q, disabled, mostrarMes }: { l: Lead; q: string; disabled: boolean; mostrarMes?: boolean }) {
   const { openLead } = useCRM();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: l.id, data: { stageId: l.stageId }, disabled });
   return (
@@ -86,13 +91,13 @@ function DraggableCard({ l, q, disabled }: { l: Lead; q: string; disabled: boole
         role="button"
         aria-label={`${l.name}. Clique para abrir, arraste para mudar de etapa.`}
       >
-        <CardBody l={l} q={q} />
+        <CardBody l={l} q={q} mostrarMes={mostrarMes} />
       </div>
     </motion.div>
   );
 }
 
-function Column({ f, s, leads, total, q }: { f: Funnel; s: Stage; leads: Lead[]; total: number; q: string }) {
+function Column({ f, s, leads, total, q, mostrarMes }: { f: Funnel; s: Stage; leads: Lead[]; total: number; q: string; mostrarMes?: boolean }) {
   const { setDialog, canEdit } = useCRM();
   const { setNodeRef, isOver } = useDroppable({ id: s.id });
   const sum = leads.reduce((acc, l) => acc + (l.value || 0), 0);
@@ -107,7 +112,7 @@ function Column({ f, s, leads, total, q }: { f: Funnel; s: Stage; leads: Lead[];
         {sum > 0 && <p className="tabular mt-0.5 text-[12px] text-ink-3">{fmtMoneyCompact(sum)} em pipeline</p>}
       </header>
       <div ref={setNodeRef} className="scroll-thin flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto px-2.5 pb-2.5">
-        {leads.map((l) => <DraggableCard key={l.id} l={l} q={q} disabled={!canEdit} />)}
+        {leads.map((l) => <DraggableCard key={l.id} l={l} q={q} disabled={!canEdit} mostrarMes={mostrarMes} />)}
         {!leads.length && <p className="py-8 text-center text-[12.5px] text-ink-3">{q ? "Nenhum resultado aqui" : "Arraste um lead para cá"}</p>}
       </div>
       {canEdit && (
@@ -120,8 +125,9 @@ function Column({ f, s, leads, total, q }: { f: Funnel; s: Stage; leads: Lead[];
 }
 
 export default function KanbanPage() {
-  const { funnels, leads, activeFunnelId, setActiveFunnelId, moveLeadTo, setDialog, canEdit } = useCRM();
+  const { funnels, leads, activeFunnelId, setActiveFunnelId, moveLeadTo, setDialog, canEdit, puxarPendentes, confirm } = useCRM();
   const [q, setQ] = useState("");
+  const [mes, setMes] = useState(mesAtual);
   const [dragId, setDragId] = useState<string | null>(null);
   const f = funnels.find((x) => x.id === activeFunnelId) ?? funnels[0];
   const sensors = useSensors(
@@ -130,17 +136,43 @@ export default function KanbanPage() {
     useSensor(KeyboardSensor),
   );
 
+  const doFunil = useCallback((l: Lead) => l.funnelId === f?.id, [f?.id]);
+  const meses = useMesesComLead(leads, doFunil);
+
+  /** Leads em aberto que ficaram em meses anteriores ao que está sendo visto. */
+  const pendentes = useMemo(
+    () => (mes === TUDO ? 0 : leads.filter((l) => l.funnelId === f?.id && !l.converted && l.mesRef && l.mesRef < mes).length),
+    [leads, f?.id, mes],
+  );
+
   const byStage = useMemo(() => {
     const map: Record<string, { all: Lead[]; shown: Lead[] }> = {};
     if (!f) return map;
     for (const s of f.stages) map[s.id] = { all: [], shown: [] };
     for (const l of leads) {
       if (l.funnelId !== f.id || !l.stageId || !map[l.stageId]) continue;
+      if (mes !== TUDO && l.mesRef !== mes) continue;
       map[l.stageId].all.push(l);
       if (matches(l, q)) map[l.stageId].shown.push(l);
     }
     return map;
-  }, [leads, f, q]);
+  }, [leads, f, q, mes]);
+
+  const noMes = useMemo(
+    () => Object.values(byStage).reduce((a, g) => a + g.all.length, 0),
+    [byStage],
+  );
+
+  function trazerPendentes() {
+    confirm(
+      `Trazer ${pendentes} ${pendentes === 1 ? "lead" : "leads"} para ${mesLabel(mes)}`,
+      `${pendentes === 1 ? "Um lead ainda em aberto ficou" : `${pendentes} leads ainda em aberto ficaram`} em meses anteriores. Eles passam a ser trabalhados em ${mesLabel(mes)}, sem perder etapa, histórico nem valor. Leads já convertidos ficam onde estão.`,
+      "Trazer para este mês",
+      async () => {
+        await puxarPendentes(mes, f?.id);
+      },
+    );
+  }
 
   const dragging = dragId ? leads.find((l) => l.id === dragId) : null;
 
@@ -156,7 +188,7 @@ export default function KanbanPage() {
 
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col md:h-dvh">
-      <PageHeader title="Kanban" subtitle="Arraste o lead para mudar de etapa. No celular, segure o cartão antes de arrastar.">
+      <PageHeader title="Kanban" subtitle="Um quadro por mês. Arraste o lead para mudar de etapa — no celular, segure antes.">
         <SearchInput value={q} onChange={setQ} placeholder="Filtrar este funil" className="w-56" />
         {canEdit && f && (
           <>
@@ -166,9 +198,20 @@ export default function KanbanPage() {
         )}
       </PageHeader>
 
+      <div className="px-4 pb-3 md:px-8">
+        <SeletorMes
+          mes={mes}
+          onChange={setMes}
+          meses={meses}
+          pendentes={canEdit ? pendentes : 0}
+          onPuxar={trazerPendentes}
+        />
+      </div>
+
       <div className="scroll-thin flex gap-1.5 overflow-x-auto px-4 pb-3 md:px-8">
         {funnels.map((x) => {
-          const n = leads.filter((l) => l.funnelId === x.id).length;
+          // a contagem da aba acompanha o mês que está sendo visto
+          const n = leads.filter((l) => l.funnelId === x.id && (mes === TUDO || l.mesRef === mes)).length;
           const on = x.id === f?.id;
           return (
             <button
@@ -194,16 +237,30 @@ export default function KanbanPage() {
           {canEdit && <Button className="mt-4" onClick={() => setDialog({ kind: "funnel" })}><Plus /> Criar funil</Button>}
         </Empty>
       ) : (
+        <>
+        {mes !== TUDO && noMes === 0 && pendentes > 0 && (
+          <div className="mx-4 mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-line bg-sunken/70 px-4 py-3 md:mx-8">
+            <p className="flex-1 text-[13px] text-ink-2">
+              Nenhum lead em {mesLabel(mes)} ainda. Seus leads não sumiram — {pendentes === 1 ? "um continua" : `${pendentes} continuam`} nos meses anteriores.
+            </p>
+            {canEdit ? (
+              <Button size="sm" onClick={trazerPendentes}>Trazer para {mesLabel(mes)}</Button>
+            ) : (
+              <Button size="sm" variant="secondary" onClick={() => setMes(TUDO)}>Ver todos os meses</Button>
+            )}
+          </div>
+        )}
         <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onStart} onDragEnd={onEnd} onDragCancel={() => setDragId(null)}>
           <div className="scroll-thin flex min-h-0 flex-1 gap-3 overflow-x-auto px-4 pb-24 md:px-8 md:pb-6">
             {f.stages.map((s) => (
-              <Column key={s.id} f={f} s={s} leads={byStage[s.id]?.shown ?? []} total={byStage[s.id]?.all.length ?? 0} q={q} />
+              <Column key={s.id} f={f} s={s} leads={byStage[s.id]?.shown ?? []} total={byStage[s.id]?.all.length ?? 0} q={q} mostrarMes={mes === TUDO} />
             ))}
           </div>
           <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(.2,.9,.3,1)" }}>
-            {dragging ? <div className="w-[264px]"><CardBody l={dragging} q={q} dragging /></div> : null}
+            {dragging ? <div className="w-[264px]"><CardBody l={dragging} q={q} dragging mostrarMes={mes === TUDO} /></div> : null}
           </DragOverlay>
         </DndContext>
+        </>
       )}
     </div>
   );

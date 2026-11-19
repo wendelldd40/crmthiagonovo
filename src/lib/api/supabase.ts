@@ -112,6 +112,13 @@ export const supabaseBackend: Backend = {
     const { error } = await sb().from(table).update(patch).eq("id", id);
     check(error);
   },
+  async updateMany(table, ids, patch) {
+    // em lotes: uma lista enorme de ids estoura o tamanho da URL do PostgREST
+    for (let i = 0; i < ids.length; i += 200) {
+      const { error } = await sb().from(table).update(patch).in("id", ids.slice(i, i + 200));
+      check(error);
+    }
+  },
   async remove(table, id) {
     const { error } = await sb().from(table).delete().eq("id", id);
     check(error);

@@ -9,6 +9,7 @@ import type { Compromisso, CurrentUser, Funnel, Lead, Mentorship, Stage, StatusC
 import { ROLE_CAN_EDIT, ROLE_PAGES, TIPOS_COMPROMISSO, type PageKey } from "./constants";
 import { findFunnel, findStage, leadPerfil } from "./domain";
 import { prepareLead, type EloResult } from "./elo";
+import { mesAtual, mesLabel, mesValido } from "./meses";
 import { addDays, fmtDate, pool, today } from "./utils";
 
 export const backend: Backend = IS_DEMO ? demoBackend : supabaseBackend;
@@ -36,7 +37,8 @@ export type DialogState =
   | null;
 
 /** Campos preenchidos no formulário; o resto (quem marcou, quando) é do sistema. */
-export type AgendaForm = Omit<Compromisso, "id" | "marcadoPorId" | "marcadoPorNome" | "marcadoEm" | "createdAt">;
+/** Só o que a pessoa preenche: quem marcou e o evento no Google são preenchidos pelo CRM. */
+export type AgendaForm = Omit<Compromisso, "id" | "marcadoPorId" | "marcadoPorNome" | "marcadoEm" | "createdAt" | "googleEventId">;
 
 export interface EloSyncSummary {
   enviados: number;
@@ -72,7 +74,7 @@ interface Ctx {
   dismissToast: (id: number) => void;
   confirm: (title: string, body: string, confirmLabel: string, run: () => Promise<void> | void) => void;
 
-  saveLead: (data: Omit<Lead, "id" | "activities" | "date" | "elo">, editingId?: string) => Promise<Lead | null>;
+  saveLead: (data: Omit<Lead, "id" | "activities" | "date" | "elo" | "mesRef">, editingId?: string) => Promise<Lead | null>;
   /** importação em lote (planilha / Google). Envia ao Elo se o envio automático estiver ligado. */
   importLeads: (rows: Omit<Lead, "id" | "elo">[], onProgress?: (feitos: number, total: number) => void) => Promise<{ criados: Lead[]; erro?: string; elo?: EloSyncSummary }>;
   patchLead: (id: string, patch: Partial<Lead>, activity?: string) => Promise<boolean>;
@@ -82,6 +84,10 @@ interface Ctx {
   snoozeFollowUp: (id: string, days: number) => Promise<void>;
   markFollowUpDone: (id: string) => Promise<void>;
   markAbordado: (id: string) => Promise<void>;
+  /** Muda o mês de trabalho de um lead ("2026-11"). */
+  setLeadMes: (id: string, mes: string) => Promise<void>;
+  /** Traz para `mes` os leads em aberto que ficaram em meses anteriores. Devolve quantos vieram. */
+  puxarPendentes: (mes: string, funnelId?: string) => Promise<number>;
 
   saveFunnel: (data: Omit<Funnel, "id">, editingId?: string) => Promise<void>;
   deleteFunnel: (id: string) => Promise<void>;
@@ -422,7 +428,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           setTimeout(() => autoSync(editingId), 0);
           return next;
         }
-        const row = await backend.insert("leads", leadToDb({ ...data, date: today(), activities: [{ text: "Lead criado", time: now() }] }));
+        // o lead nasce no mês corrente: é nele que a equipe vai trabalhá-lo
+        const row = await backend.insert("leads", leadToDb({ ...data, date: today(), mesRef: mesAtual(), activities: [{ text: "Lead criado", time: now() }] }));
         const l = mapLead(row);
         setLeads((ls) => [...ls, l]);
         toast("Lead criado", "ok", { label: "Abrir", run: () => setDetailId(l.id) });
@@ -546,6 +553,47 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       if (ok) toast(`${l.name.split(" ")[0]} marcado como abordado`);
     },
     [patchLead, toast, user],
+  );
+
+  /* ───────── Mês de trabalho ───────── */
+
+  const setLeadMes = useCallback<Ctx["setLeadMes"]>(
+    async (id, mes) => {
+      const l = leadsRef.current.find((x) => x.id === id);
+      if (!l || !mesValido(mes) || l.mesRef === mes) return;
+      const ok = await patchLead(id, { mesRef: mes }, `Movido para ${mesLabel(mes)}`);
+      if (ok) toast(`Lead movido para ${mesLabel(mes)}`);
+    },
+    [patchLead, toast],
+  );
+
+  /**
+   * Vira o mês dos leads que ficaram para trás: tudo que ainda está em aberto
+   * (não convertido) em meses anteriores passa a ser trabalhado no mês escolhido.
+   * É o que impede o quadro novo de nascer vazio e os leads antigos de sumirem.
+   */
+  const puxarPendentes = useCallback<Ctx["puxarPendentes"]>(
+    async (mes, funnelId) => {
+      if (!mesValido(mes)) return 0;
+      const alvos = leadsRef.current.filter(
+        (l) => !l.converted && l.mesRef && l.mesRef < mes && (!funnelId || l.funnelId === funnelId),
+      );
+      if (!alvos.length) return 0;
+      const ids = alvos.map((l) => l.id);
+      const antes = new Map(alvos.map((l) => [l.id, l.mesRef]));
+      const conjunto = new Set(ids);
+      setLeads((ls) => ls.map((l) => (conjunto.has(l.id) ? { ...l, mesRef: mes } : l)));
+      try {
+        await backend.updateMany("leads", ids, { mes_ref: mes });
+        toast(`${ids.length} ${ids.length === 1 ? "lead veio" : "leads vieram"} para ${mesLabel(mes)}`);
+        return ids.length;
+      } catch (e) {
+        setLeads((ls) => ls.map((l) => (conjunto.has(l.id) ? { ...l, mesRef: antes.get(l.id) ?? l.mesRef } : l)));
+        fail(e);
+        return 0;
+      }
+    },
+    [fail, toast],
   );
 
   /* ───────── Funis ───────── */
@@ -682,6 +730,52 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   );
 
   /* ───────── Agenda ───────── */
+
+  /**
+   * Manda o compromisso para o calendário do Google, se a ligação estiver ligada.
+   * Roda solto, depois de salvar: o CRM não espera o Google para responder à pessoa.
+   * Quando o Google recusa, o compromisso continua salvo aqui e o aviso explica o porquê.
+   */
+  const espelharNoGoogle = useCallback(
+    async (id: string) => {
+      if (IS_DEMO) return;
+      try {
+        const token = await backend.accessToken();
+        const r = await fetch("/api/agenda/google", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${token ?? ""}`, "x-crm-demo": "0" },
+          body: JSON.stringify({ id, urlCrm: `${window.location.origin}/agenda` }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (j.pulado) return; // ligação não configurada: segue só no CRM
+        if (!r.ok) {
+          toast(j.erro || "O compromisso foi salvo, mas não entrou no Google Agenda.", "error");
+          return;
+        }
+        if (j.googleEventId) {
+          setAgenda((as) => as.map((c) => (c.id === id ? { ...c, googleEventId: j.googleEventId } : c)));
+        }
+      } catch {
+        toast("O compromisso foi salvo, mas não entrou no Google Agenda.", "error");
+      }
+    },
+    [toast],
+  );
+
+  const removerDoGoogle = useCallback(async (googleEventId: string | null) => {
+    if (IS_DEMO || !googleEventId) return;
+    try {
+      const token = await backend.accessToken();
+      await fetch("/api/agenda/google", {
+        method: "DELETE",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token ?? ""}`, "x-crm-demo": "0" },
+        body: JSON.stringify({ googleEventId }),
+      });
+    } catch {
+      /* o compromisso já saiu do CRM; o evento solto é removido na próxima edição */
+    }
+  }, []);
+
   const saveAgenda = useCallback<Ctx["saveAgenda"]>(
     async (data, editingId) => {
       const u = userRef.current;
@@ -692,6 +786,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           const next: Compromisso = { ...ex, ...data };
           await backend.update("agenda", editingId, agendaToDb(next));
           setAgenda((as) => as.map((c) => (c.id === editingId ? next : c)));
+          void espelharNoGoogle(editingId);
           toast("Compromisso atualizado");
           return next;
         }
@@ -708,6 +803,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           const quando = `${fmtDate(c.data)}${c.hora ? ` às ${c.hora}` : ""}`;
           void patchLead(c.leadId, {}, `${d.label} ${d.fem ? "marcada" : "marcado"} para ${quando} por ${u?.name || "equipe"}`);
         }
+        void espelharNoGoogle(c.id);
         toast("Compromisso marcado");
         return c;
       } catch (e) {
@@ -715,20 +811,22 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         return null;
       }
     },
-    [fail, patchLead, toast],
+    [espelharNoGoogle, fail, patchLead, toast],
   );
 
   const deleteAgenda = useCallback(
     async (id: string) => {
+      const prev = agendaRef.current.find((c) => c.id === id);
       try {
         await backend.remove("agenda", id);
         setAgenda((as) => as.filter((c) => c.id !== id));
+        void removerDoGoogle(prev?.googleEventId ?? null);
         toast("Compromisso excluído");
       } catch (e) {
         fail(e);
       }
     },
-    [fail, toast],
+    [fail, removerDoGoogle, toast],
   );
 
   const setAgendaStatus = useCallback(
@@ -748,12 +846,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
               : `Não compareceu ${d.fem ? "à" : "ao"} ${d.label.toLowerCase()}`,
           );
         }
+        // o calendário acompanha: cancelado deixa de ocupar o horário
+        void espelharNoGoogle(id);
       } catch (e) {
         setAgenda((as) => as.map((c) => (c.id === id ? prev : c)));
         fail(e);
       }
     },
-    [fail, patchLead],
+    [espelharNoGoogle, fail, patchLead],
   );
 
   const setSetting = useCallback(
@@ -777,11 +877,12 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       activeFunnelId, setActiveFunnelId, detailId, openLead: setDetailId, closeLead: () => setDetailId(null),
       dialog, setDialog, toasts, toast, dismissToast, confirm,
       saveLead, importLeads, patchLead, moveLeadTo, deleteLead, addNote, snoozeFollowUp, markFollowUpDone, markAbordado,
+      setLeadMes, puxarPendentes,
       saveFunnel, deleteFunnel, saveStages, saveTask, deleteTask, setTaskStatus, saveMentorship, deleteMentorship,
       saveAgenda, deleteAgenda, setAgendaStatus,
       setSetting, syncToElo, registrarLigacao,
     }),
-    [ready, loadError, user, funnels, leads, tasks, mentorships, agenda, settings, load, signIn, signOut, can, canEdit, activeFunnelId, setActiveFunnelId, detailId, dialog, toasts, toast, dismissToast, confirm, saveLead, importLeads, patchLead, moveLeadTo, deleteLead, addNote, snoozeFollowUp, markFollowUpDone, markAbordado, saveFunnel, deleteFunnel, saveStages, saveTask, deleteTask, setTaskStatus, saveMentorship, deleteMentorship, saveAgenda, deleteAgenda, setAgendaStatus, setSetting, syncToElo, registrarLigacao],
+    [ready, loadError, user, funnels, leads, tasks, mentorships, agenda, settings, load, signIn, signOut, can, canEdit, activeFunnelId, setActiveFunnelId, detailId, dialog, toasts, toast, dismissToast, confirm, saveLead, importLeads, patchLead, moveLeadTo, deleteLead, addNote, snoozeFollowUp, markFollowUpDone, markAbordado, setLeadMes, puxarPendentes, saveFunnel, deleteFunnel, saveStages, saveTask, deleteTask, setTaskStatus, saveMentorship, deleteMentorship, saveAgenda, deleteAgenda, setAgendaStatus, setSetting, syncToElo, registrarLigacao],
   );
 
   return <C.Provider value={value}>{children}</C.Provider>;

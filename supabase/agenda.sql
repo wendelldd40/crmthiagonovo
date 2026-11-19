@@ -36,6 +36,9 @@ create table if not exists public.agenda (
   observacoes   text,
   valor         numeric not null default 0,
 
+  -- evento correspondente no Google Agenda (preenchido sozinho quando a ligação está ligada)
+  google_event_id text,
+
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
@@ -47,6 +50,8 @@ alter table public.agenda add column if not exists responsavel_nome text;
 alter table public.agenda add column if not exists marcado_por_id   uuid;
 alter table public.agenda add column if not exists marcado_por_nome text;
 alter table public.agenda add column if not exists valor            numeric not null default 0;
+-- id do evento no Google Agenda, quando a ligação com o Google está ligada
+alter table public.agenda add column if not exists google_event_id  text;
 
 create index if not exists agenda_data_idx    on public.agenda (data);
 create index if not exists agenda_lead_idx    on public.agenda (lead_id);

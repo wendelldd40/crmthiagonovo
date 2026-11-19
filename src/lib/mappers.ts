@@ -1,5 +1,6 @@
 /* Conversão linha do banco ↔ objeto da tela. Idênticos aos do CRM antigo. */
 import type { Compromisso, Funnel, Lead, Mentorship, StatusCompromisso, Task, TipoCompromisso } from "./types";
+import { mesDe } from "./meses";
 import { today } from "./utils";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -29,6 +30,8 @@ export function mapLead(r: Row): Lead {
     serviceMonths: r.service_months || 0,
     activities: r.activities || [],
     date: r.date || today(),
+    // antes de rodar mes-kanban.sql a coluna não existe: cai no mês da data do lead
+    mesRef: r.mes_ref || mesDe(r.date || today()),
     elo:
       r.elo_contatos || r.elo_cadencia || r.elo_respostas
         ? {
@@ -104,6 +107,7 @@ export function mapAgenda(r: Row): Compromisso {
     local: r.local || "",
     observacoes: r.observacoes || "",
     valor: Number(r.valor) || 0,
+    googleEventId: r.google_event_id ?? null,
     createdAt: r.created_at || "",
   };
 }
@@ -128,6 +132,7 @@ export function agendaToDb(c: Partial<Compromisso>) {
   if (c.marcadoPorNome !== undefined) out.marcado_por_nome = c.marcadoPorNome || null;
   if (c.local !== undefined) out.local = c.local || null;
   if (c.observacoes !== undefined) out.observacoes = c.observacoes || null;
+  if (c.googleEventId !== undefined) out.google_event_id = c.googleEventId || null;
   put("valor", c.valor ?? 0);
   return out;
 }
@@ -152,6 +157,7 @@ export function leadToDb(l: Partial<Lead>) {
     service_months: l.serviceMonths || 0,
     activities: l.activities || [],
     date: l.date || today(),
+    mes_ref: l.mesRef || mesDe(l.date || today()),
   };
 }
 
@@ -161,7 +167,7 @@ export function leadPatchToDb(p: Partial<Lead>) {
     name: "name", email: "email", phone: "phone", instagram: "instagram", company: "company", origin: "origin",
     isVet: "is_vet", funnelId: "funnel_id", stageId: "stage_id", value: "value", tags: "tags", notes: "notes",
     followUp: "follow_up", converted: "converted", convertedDate: "converted_date", serviceMonths: "service_months",
-    activities: "activities", date: "date",
+    activities: "activities", date: "date", mesRef: "mes_ref",
   };
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(p)) {

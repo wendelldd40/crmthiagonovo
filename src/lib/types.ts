@@ -56,6 +56,11 @@ export interface Lead {
   serviceMonths: number;
   activities: Activity[];
   date: string;
+  /**
+   * Mês em que o lead está sendo trabalhado, no formato "2026-11".
+   * Nasce com o mês de entrada e a equipe move quando o lead vira o mês.
+   */
+  mesRef: string;
   /** Esteira de contatos calculada pelo Elo (somente leitura no CRM). */
   elo: EloEsteira | null;
 }
@@ -136,6 +141,8 @@ export interface Compromisso {
   local: string;
   observacoes: string;
   valor: number;
+  /** Id do evento no Google Agenda, quando a ligação está ligada. */
+  googleEventId: string | null;
   createdAt: string;
 }
 

@@ -24,7 +24,7 @@ Para usar os dados reais, copie `.env.example` para `.env.local` e preencha:
 | `ELO_WEBHOOK_SECRET` | Segredo do webhook criado no Elo (Integrador → Webhooks) para a esteira |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase do CRM, Settings → API. Só servidor: grava a esteira que chega do Elo e serve a agenda para o calendário do celular |
 
-`ELO_API_KEY`, `ELO_WEBHOOK_SECRET` e `SUPABASE_SERVICE_ROLE_KEY` **não** têm `NEXT_PUBLIC_` de propósito: ficam só no servidor.
+`ELO_API_KEY`, `ELO_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` e as três do Google (abaixo, em **Agenda**) **não** têm `NEXT_PUBLIC_` de propósito: ficam só no servidor.
 
 ## Colocar no ar (Vercel)
 
@@ -41,7 +41,7 @@ O CRM deixou de ser um HTML estático porque o envio ao Elo precisa de um servid
 |---|---|
 | **Agenda** | Diagnósticos, reuniões, mentorias e ligações com data, hora e duração. Registra sozinho **quem marcou** cada um. Visões Próximos / Mês / Tudo, comparecimento do mês, lista de "sem baixa" e sincronização com o calendário do celular |
 | **Painel** | Abre com quem precisa ser contatado agora (atrasados, marcados para hoje, parados na etapa). Indicadores, Instagram DM, canais, qualidade do lead, funis, origens, leads novos por semana |
-| **Kanban** | Arrastar e soltar com dnd-kit (mouse, toque e teclado). No celular, segure o cartão antes de arrastar. Filtro por funil, alertas de follow-up no cartão, soma de valor por etapa |
+| **Kanban** | **Um quadro por mês**, para o funil não virar uma pilha. Arrastar e soltar com dnd-kit (mouse, toque e teclado). No celular, segure o cartão antes de arrastar. Filtro por funil, alertas de follow-up no cartão, soma de valor por etapa |
 | **Leads** | Tabela com busca e filtros (funil, origem, perfil, Elo), seleção em lote, exportação CSV, envio em lote ao Elo |
 | **Painel do lead** | Abre ao clicar em qualquer lead. Barra de etapas clicável (muda de etapa com um clique), WhatsApp, editar, mover, enviar ao Elo, histórico e notas |
 | **Funis** | Cartões com fechamento, pipeline e distribuição por etapa. Editor de etapas com arrastar para reordenar |
@@ -114,6 +114,21 @@ Nos dois casos você escolhe funil, etapa e etiquetas. "Lista de prospecção" g
 
 Custo (tabela da Google em out/2026): cada busca de até 20 resultados com telefone é cobrada como *Text Search Enterprise*: 1.000 buscas grátis por mês, depois US$ 35 a cada 1.000. Uma busca de 3 tipos numa cidade, com "Carregar mais" até o fim, gasta até 9 buscas.
 
+## Kanban por mês (v2.10)
+
+**Antes de usar, rode `supabase/mes-kanban.sql`** uma vez no SQL Editor. Ele acrescenta uma coluna (`mes_ref`) em `leads` e já coloca cada lead que existe no mês em que entrou. Não apaga nada e pode ser rodado de novo.
+
+Cada mês tem o seu quadro. O Kanban abre no mês corrente, as setas andam mês a mês e o nome do mês abre a lista para pular direto; **Todos os meses** volta ao quadro antigo, sem recorte. A contagem das abas de funil acompanha o mês que está sendo visto.
+
+O mês é um campo próprio do lead — o **mês de trabalho** —, e não a data de entrada. A diferença importa: um lead que entrou em setembro e ainda está em negociação precisa continuar aparecendo em novembro. Por isso:
+
+- o lead nasce no mês em que foi criado (ou importado);
+- **Trazer pendentes** vira de uma vez todos os leads ainda em aberto que ficaram em meses anteriores — mostra quantos são e pede confirmação antes. Leads já convertidos ficam onde estão;
+- no painel do lead, em **Mês de trabalho**, dá para mover um lead sozinho (mês passado, atual ou o que vem), e fica no histórico dele;
+- quando o mês está vazio mas há leads atrás, o quadro avisa em vez de parecer que os leads sumiram.
+
+O mesmo seletor está na lista de **Leads** e nos **Relatórios** — lá ele abre em *Todos os meses*, porque são telas de visão geral. Nos Relatórios, o gráfico de 12 meses conta pelo mês de trabalho, então as barras batem com o que o Kanban mostra em cada mês.
+
 ## Agenda (v2.8)
 
 Tela **Agenda** no menu (e no menu inferior do celular). Para marcar, use o botão **Agendar** — na própria Agenda, no painel de qualquer lead ou no Painel.
@@ -126,7 +141,36 @@ Cada compromisso tem tipo (diagnóstico, reunião, mentoria, ligação, compromi
 
 ### Juntar com a agenda do celular
 
-Na Agenda, botão **Sincronizar com o celular**. Ele gera um endereço secreto (fica em `settings.agenda_token`) que o celular **assina uma vez** e depois atualiza sozinho — marcou no CRM, aparece no celular em até uma hora, sem precisar exportar nada de novo.
+Botão **Celular**, na Agenda. Tem dois caminhos, e eles se somam.
+
+#### 1. Ligação direta com o Google Agenda — aparece na hora (v2.9)
+
+O CRM escreve direto num calendário do Google. Marcou, já está lá; mudou de horário ou de situação, muda junto; excluiu, some. Esse calendário é compartilhado com a equipe, então todo mundo vê — inclusive no iPhone, para quem tem a conta Google ligada no aparelho.
+
+Usa uma **conta de serviço**, não o login de cada pessoa. Isso evita toda a burocracia: não tem tela de consentimento, não precisa da verificação do Google e a autorização não vence (um app OAuth não verificado perde a autorização a cada 7 dias). Funciona com Gmail comum, sem Google Workspace.
+
+Configuração, uma vez (o passo a passo também está dentro do botão **Celular**):
+
+1. No Google Agenda, crie um calendário novo — **ThiagoCRM · Agenda**. Não use o pessoal.
+2. No [Google Cloud](https://console.cloud.google.com): projeto novo → ative a **Google Calendar API** → **Credenciais → Criar → Conta de serviço** → dentro dela, **Chaves → Adicionar chave → JSON**.
+3. No calendário: **Configurações → Compartilhar com pessoas específicas**, cole o e-mail da conta de serviço (termina em `.iam.gserviceaccount.com`) e marque **Fazer alterações nos eventos**.
+4. Na Vercel, três variáveis:
+
+| Variável | Onde pegar |
+|---|---|
+| `GOOGLE_SA_EMAIL` | `client_email` do JSON |
+| `GOOGLE_SA_PRIVATE_KEY` | `private_key` do JSON, inteira, com BEGIN e END |
+| `GOOGLE_CALENDAR_ID` | Configurações do calendário → **Integrar agenda** |
+
+5. Redeploy, e compartilhe o mesmo calendário com cada pessoa da equipe.
+
+Sem essas variáveis o CRM funciona igual — só não espelha no Google. A tela mostra o estado da ligação e, quando o Google recusa, explica o que fazer (o caso mais comum é esquecer de compartilhar o calendário com a conta de serviço).
+
+Limite conhecido: conta de serviço em conta Gmail comum não manda convite para terceiros (precisaria de delegação do Workspace). Não atrapalha aqui, porque o calendário já é compartilhado — ninguém precisa ser convidado.
+
+#### 2. Endereço assinado — sem configuração nenhuma
+
+O botão gera um endereço secreto (fica em `settings.agenda_token`) que o celular **assina uma vez** e depois busca sozinho. Não precisa de nada no Google Cloud, mas a atualização não é imediata: o **iPhone** busca a cada hora e deixa baixar para 5 minutos; o **Google Agenda** relê a cada **12 ou 24 horas**, e isso é limite do Google — não existe ajuste de nenhum lado. Para o Google, prefira a ligação direta acima.
 
 | Aparelho | Caminho |
 |---|---|
@@ -171,7 +215,7 @@ O webhook do Elo também cria lead para quem chegou pelo Instagram, só com o @ 
 
 ```
 src/app/(app)/        telas (uma pasta por rota)
-src/app/api/agenda/   endereço do calendário assinado pelo celular (.ics)
+src/app/api/agenda/   endereço assinado (.ics) e ligação direta com o Google Agenda
 src/app/api/elo/      rotas do servidor que falam com o Elo
 src/app/login/        login
 src/components/crm/   painel do lead, formulários, tabela, follow-ups, envio ao Elo
@@ -180,7 +224,9 @@ src/components/ui/    botões, campos, modais, chips
 src/lib/              tipos, regras de negócio (domain.ts), estado (store.tsx), mapeamento do banco
 src/lib/api/          Supabase real e modo demonstração
 src/lib/ics.ts        gera o calendário no padrão dos celulares (RFC 5545)
-src/server/           autenticação e cliente do Elo (só servidor)
+src/lib/meses.ts      contas do mês de trabalho do lead (sem new Date, por causa do fuso)
+src/server/           autenticação, cliente do Elo e Google Agenda (só servidor)
 supabase/agenda.sql   cria a tabela da agenda (rodar uma vez)
+supabase/mes-kanban.sql  acrescenta o mês de trabalho aos leads (rodar uma vez)
 tests/                esteira, importação e calendário (`npm test`)
 ```

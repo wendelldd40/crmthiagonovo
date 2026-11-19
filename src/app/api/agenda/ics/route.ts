@@ -9,7 +9,10 @@ export const dynamic = "force-dynamic";
  * GET /api/agenda/ics?token=…&tipo=diagnostico&responsavel=…
  *
  * Feed de calendário assinável. O celular (Google Agenda, Calendário do iPhone, Outlook)
- * guarda este endereço e busca de hora em hora — não precisa exportar nada à mão.
+ * guarda este endereço e busca sozinho — não precisa exportar nada à mão. A frequência
+ * é de quem assina: o iPhone busca a cada hora (configurável até 5 minutos) e o Google
+ * a cada 12 ou 24 horas. Para o compromisso entrar na hora, use a ligação direta com o
+ * Google (/api/agenda/google), que escreve no calendário em vez de esperar ele ler.
  *
  * O token não dá acesso ao CRM: só lê a agenda, e serve para o endereço não ficar público.
  * Fica em `settings.agenda_token`, gerado na própria tela da Agenda.

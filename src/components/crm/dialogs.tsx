@@ -29,7 +29,7 @@ function useBusy() {
 
 /* ─────────────────── Lead ─────────────────── */
 
-type LeadForm = Omit<Lead, "id" | "activities" | "date" | "elo">;
+type LeadForm = Omit<Lead, "id" | "activities" | "date" | "elo" | "mesRef">;
 
 function LeadDialog({ leadId, funnelId, stageId }: { leadId?: string; funnelId?: string; stageId?: string }) {
   const { leads, funnels, activeFunnelId, saveLead, setDialog } = useCRM();

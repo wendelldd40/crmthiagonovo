@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
+import { LigacaoGoogle } from "./agenda-google";
 
 type Aba = "google" | "iphone" | "outlook";
 
@@ -80,9 +81,18 @@ export function SincronizarCelular({ variante = "secondary", rotulo = "Celular" 
         onOpenChange={setAberto}
         size="lg"
         title="Agenda no celular"
-        description="O calendário do telefone busca esta agenda de hora em hora. Assina uma vez e nunca mais precisa exportar nada."
+        description="Duas formas de ver a agenda do CRM no telefone: ligada direto ao Google (na hora) ou assinada por endereço (o telefone busca sozinho)."
       >
         <div className="space-y-4 pb-2">
+          <LigacaoGoogle />
+
+          <div className="border-t border-line pt-4">
+            <p className="text-[13.5px] font-semibold text-ink">Assinar por endereço</p>
+            <p className="mt-0.5 text-[12.5px] text-ink-3">
+              Não precisa de configuração, mas o telefone busca de tempos em tempos: o iPhone a cada hora (dá para baixar para 5 minutos) e o Google a cada 12 ou 24 horas.
+            </p>
+          </div>
+
           {!token ? (
             <div className="rounded-2xl border border-line bg-surface-2 p-5 text-center">
               <span className="mx-auto mb-3 grid size-11 place-items-center rounded-2xl bg-brand-soft text-brand-strong"><Smartphone className="size-5" /></span>
